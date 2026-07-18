@@ -57,18 +57,28 @@ struct DayHeaderView: View {
                 Text(headerTitle)
                 Spacer()
                 if group.strawberryKg > 0 {
-                    Text("🍓 \(CzechFormat.quantity(group.strawberryKg)) kg")
-                        .font(.subheadline.bold())
-                        .foregroundStyle(Color.accentColor)
+                    ProductBadge(
+                        iconName: "ic_jahody",
+                        text: "\(CzechFormat.quantity(group.strawberryKg)) kg",
+                        iconSize: 20
+                    )
+                    .font(.subheadline.bold())
+                    .foregroundStyle(Color.accentColor)
                 }
             }
             let otherTotals = DailySummary.otherItemTotals(group.orders)
             if !otherTotals.isEmpty {
-                Text(otherTotals
-                    .map { "\(ProductIcon.emoji(for: $0.name)) \(CzechFormat.quantity($0.quantity)) \($0.unit)" }
-                    .joined(separator: "  "))
-                    .font(.caption)
-                    .textCase(nil)
+                HStack(spacing: 10) {
+                    ForEach(otherTotals, id: \.name) { total in
+                        ProductBadge(
+                            iconName: ProductIcon.assetName(for: total.name),
+                            text: "\(CzechFormat.quantity(total.quantity)) \(total.unit)",
+                            iconSize: 16
+                        )
+                    }
+                }
+                .font(.caption)
+                .textCase(nil)
             }
         }
     }
@@ -94,10 +104,18 @@ struct OrderRowView: View {
                 Text(order.customerName)
                     .font(.body.weight(.medium))
                     .strikethrough(order.status == .zrusena)
-                Text(ProductIcon.summary(order.items))
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                HStack(spacing: 10) {
+                    ForEach(order.items) { item in
+                        ProductBadge(
+                            iconName: ProductIcon.assetName(for: item.productName),
+                            text: "\(CzechFormat.quantity(item.quantity)) \(item.unit)",
+                            iconSize: 18
+                        )
+                    }
+                }
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
             }
 
             Spacer()
@@ -115,6 +133,23 @@ struct OrderRowView: View {
         }
         .padding(.vertical, 4)
         .opacity(order.status == .zrusena ? 0.5 : 1)
+    }
+}
+
+/// Ikonka produktu + množství (např. 🍓 3 kg) pro přehled.
+struct ProductBadge: View {
+    let iconName: String
+    let text: String
+    var iconSize: CGFloat = 18
+
+    var body: some View {
+        HStack(spacing: 3) {
+            Image(iconName)
+                .resizable()
+                .scaledToFit()
+                .frame(width: iconSize, height: iconSize)
+            Text(text)
+        }
     }
 }
 
@@ -146,8 +181,12 @@ struct HistoryView: View {
                                 Text(CzechFormat.dayWithYearFormatter.string(from: group.day))
                                 Spacer()
                                 if group.strawberryKg > 0 {
-                                    Text("🍓 \(CzechFormat.quantity(group.strawberryKg)) kg")
-                                        .font(.subheadline.bold())
+                                    ProductBadge(
+                                        iconName: "ic_jahody",
+                                        text: "\(CzechFormat.quantity(group.strawberryKg)) kg",
+                                        iconSize: 18
+                                    )
+                                    .font(.subheadline.bold())
                                 }
                             }
                         }
