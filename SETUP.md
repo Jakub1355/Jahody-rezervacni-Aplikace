@@ -61,12 +61,15 @@ Návod krok za krokem, co musíte udělat v Firebase Console, Google Cloud Conso
 
 ## 8. První spuštění
 
+> Projekt musíte mít **naklonovaný lokálně na Macu** (samotný GitHub nestačí — Xcode staví z lokálních souborů a `GoogleService-Info.plist` v gitu není). Viz README, sekce „Kde mít projekt“.
+
 1. Otevřete `Jahody.xcodeproj` v Xcode (16 nebo novější). Xcode si sám stáhne SPM závislosti (firebase-ios-sdk, GoogleSignIn-iOS) — chvíli to trvá.
 2. Target **Jahody** → **Signing & Capabilities** → vyberte svůj **Team** (osobní Apple ID stačí; podpis bez placeného účtu vyprší po 7 dnech, pak aplikaci znovu nahrajete).
 3. Připojte iPhone, zvolte ho jako cíl a **⌘R**.
 4. Přihlaste se Google účtem, který je v `allowedUsers` i v „Test users“.
 5. Nastavení → **Cílový kalendář** → vyberte sdílený kalendář.
 6. Zadejte zkušební objednávku — do minuty se má objevit v Google Kalendáři všem, s kým je kalendář sdílený.
+7. **Diktování:** na obrazovce Nová objednávka klepněte na „Nadiktovat objednávku“. Při prvním použití iOS vyžádá povolení **mikrofonu** a **rozpoznávání řeči** — potvrďte. (Když je odmítnete, zapnete je zpět v iOS → Nastavení → Jahody.) Rozpoznávání české řeči musí být v systému dostupné; funguje i offline, pokud si iOS stáhne český jazykový balíček.
 
 ## 9. Testy
 
