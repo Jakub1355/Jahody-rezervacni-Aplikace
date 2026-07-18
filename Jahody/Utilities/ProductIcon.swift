@@ -30,13 +30,13 @@ enum ProductIcon {
     private static let mapping: [([String], String)] = [
         (["jahod"], "🍓"),
         (["vajic", "vejc", "vajec"], "🥚"),
-        (["sirup"], "🍯"),
-        (["marmelad", "dzem"], "🫙"),
+        (["sirup"], "🍾"),          // vysoká láhev (emoji nejdou přebarvit)
+        (["marmelad", "dzem"], "🍒"), // červená
+        (["med"], "🍯"),
         (["syr"], "🧀"),
         (["mlek", "mlik"], "🥛"),
         (["tvaroh"], "🥣"),
         (["maslo"], "🧈"),
-        (["med"], "🍯"),
         (["brambor"], "🥔"),
         (["jablk", "jablc"], "🍎"),
         (["okurk"], "🥒"),
