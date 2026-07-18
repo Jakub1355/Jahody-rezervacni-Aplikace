@@ -121,6 +121,36 @@ final class OrderFormModel: ObservableObject {
         return updated
     }
 
+    /// Zapíše rozpoznaná pole z nadiktované objednávky. Co diktát nenašel,
+    /// zůstane beze změny — vše jde následně ručně upravit.
+    func apply(dictation result: DictationResult) {
+        if let name = result.customerName, !name.isEmpty {
+            customerName = name
+        }
+        if let phone = result.phone, !phone.isEmpty {
+            self.phone = phone
+        }
+        if let kg = result.strawberryKg, kg > 0 {
+            strawberryText = CzechFormat.quantity(kg)
+        }
+        if let day = result.pickupDay {
+            pickupDay = Calendar.current.startOfDay(for: day)
+        }
+        if let minutes = result.pickupMinutes {
+            pickupMinutes = minutes
+        }
+        for item in result.extraItems {
+            if let index = extraItems.firstIndex(where: { $0.productName == item.productName }) {
+                extraItems[index].quantity = item.quantity
+            } else {
+                extraItems.append(item)
+            }
+        }
+        if let note = result.note, !note.isEmpty {
+            self.note = note
+        }
+    }
+
     func reset() {
         customerName = ""
         phone = ""

@@ -10,10 +10,24 @@ struct NewOrderView: View {
     @StateObject private var model = OrderFormModel()
     @State private var savedBannerVisible = false
     @State private var errorMessage: String?
+    @State private var showsDictation = false
 
     var body: some View {
         NavigationStack {
             Form {
+                // Rychlé nadiktování celé objednávky (jméno, telefon, kdy, kolik).
+                Section {
+                    Button {
+                        showsDictation = true
+                    } label: {
+                        Label("Nadiktovat objednávku", systemImage: "mic.fill")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity, minHeight: 48)
+                    }
+                    .buttonStyle(.bordered)
+                    .listRowInsets(EdgeInsets())
+                }
+
                 OrderFormFields(model: model)
 
                 Section {
@@ -36,6 +50,9 @@ struct NewOrderView: View {
                 }
             }
             .navigationTitle("Nová objednávka")
+            .sheet(isPresented: $showsDictation) {
+                DictationSheet(model: model, products: products.activeProducts)
+            }
             .overlay(alignment: .top) {
                 if savedBannerVisible {
                     Label("Objednávka uložena", systemImage: "checkmark.circle.fill")

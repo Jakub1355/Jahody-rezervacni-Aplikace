@@ -2,6 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- Diktování objednávky hlasem -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Mikrofon slouží k nadiktování objednávky (jméno, telefon, kdy a kolik) během telefonátu.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Rozpoznávání řeči převede nadiktovanou objednávku na text a předvyplní formulář.</string>
+
 	<!-- URL schéma pro návrat z přihlášení Googlem.
 	     Nahraďte hodnotu REVERSED_CLIENT_ID z vašeho GoogleService-Info.plist — viz SETUP.md, krok 5. -->
 	<key>CFBundleURLTypes</key>

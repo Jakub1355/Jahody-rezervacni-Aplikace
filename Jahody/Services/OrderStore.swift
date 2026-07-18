@@ -97,8 +97,10 @@ final class OrderStore: ObservableObject {
 
     /// Zapíše výsledek synchronizace s kalendářem (nemění updatedAt).
     func markCalendarSync(orderId: String, eventId: String?, status: CalendarSyncStatus) {
+        // Když událost už neexistuje (zrušená objednávka), pole se z dokumentu odstraní.
+        let eventValue: Any = eventId.map { $0 as Any } ?? FieldValue.delete()
         ordersCollection.document(orderId).updateData([
-            "calendarEventId": eventId as Any,
+            "calendarEventId": eventValue,
             "calendarSyncStatus": status.rawValue,
         ])
         // Lokální kopie se aktualizuje přes listener.
