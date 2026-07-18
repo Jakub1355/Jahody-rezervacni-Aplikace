@@ -8,7 +8,10 @@ struct SignInView: View {
     var body: some View {
         VStack(spacing: 24) {
             Spacer()
-            Text("🍓").font(.system(size: 72))
+            Image("StrawberryLogo")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 96, height: 96)
             Text("Jahody")
                 .font(.largeTitle.bold())
             Text("Objednávky z farmy pro celou rodinu")

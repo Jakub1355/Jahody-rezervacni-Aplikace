@@ -62,8 +62,11 @@ struct DayHeaderView: View {
                         .foregroundStyle(Color.accentColor)
                 }
             }
-            if !group.otherItemsSummary.isEmpty {
-                Text(group.otherItemsSummary)
+            let otherTotals = DailySummary.otherItemTotals(group.orders)
+            if !otherTotals.isEmpty {
+                Text(otherTotals
+                    .map { "\(ProductIcon.emoji(for: $0.name)) \(CzechFormat.quantity($0.quantity)) \($0.unit)" }
+                    .joined(separator: "  "))
                     .font(.caption)
                     .textCase(nil)
             }
@@ -91,7 +94,7 @@ struct OrderRowView: View {
                 Text(order.customerName)
                     .font(.body.weight(.medium))
                     .strikethrough(order.status == .zrusena)
-                Text(CzechFormat.itemsSummary(order.items))
+                Text(ProductIcon.summary(order.items))
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
