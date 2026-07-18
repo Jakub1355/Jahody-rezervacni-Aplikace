@@ -1,6 +1,6 @@
 # Zadání pro Claude Code — Rezervační aplikace pro objednávky z farmy („Jahody")
 
-> **Jak použít:** Naklonuj si tento repozitář na Mac (`git clone https://github.com/Jakub1355/Jahody-rezervacni-Aplikace`), v jeho složce spusť `claude` a vlož celý tento text jako první prompt. Claude Code podle něj založí a naprogramuje projekt přímo v tomto repozitáři.
+> **Jak použít:** Naklonuj si nový (prázdný) repozitář na Mac, v jeho složce spusť `claude` a vlož celý tento text jako první prompt. Claude Code podle něj založí a naprogramuje celý projekt. Stejně to funguje i v nové session Claude Code na webu připojené k novému repozitáři.
 
 ---
 
