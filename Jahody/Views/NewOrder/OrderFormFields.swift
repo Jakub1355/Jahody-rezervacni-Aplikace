@@ -9,8 +9,10 @@ struct OrderFormFields: View {
 
     @EnvironmentObject private var orders: OrderStore
     @EnvironmentObject private var products: ProductStore
+    @StateObject private var contacts = ContactsService()
     @State private var showsOtherDatePicker = false
     @State private var showsContactPicker = false
+    @State private var contactSuggestions: [CustomerSuggestion] = []
     @FocusState private var nameFocused: Bool
 
     var body: some View {
@@ -41,32 +43,27 @@ struct OrderFormFields: View {
                 .frame(minHeight: 40)
                 .onChange(of: model.customerName) { _, newName in
                     // Když zákazníka známe z historie, doplní se i telefon (pokud je prázdný).
-                    guard showSuggestions, model.phone.isEmpty,
-                          let phone = orders.phone(forCustomerName: newName) else { return }
-                    model.phone = phone
+                    if showSuggestions, model.phone.isEmpty,
+                       let phone = orders.phone(forCustomerName: newName) {
+                        model.phone = phone
+                    }
+                    // Našeptávání z kontaktů.
+                    contactSuggestions = showSuggestions ? contacts.suggestions(matching: newName) : []
+                }
+                .onChange(of: nameFocused) { _, focused in
+                    guard focused, showSuggestions else { return }
+                    Task {
+                        await contacts.ensureAccess()
+                        contactSuggestions = contacts.suggestions(matching: model.customerName)
+                    }
                 }
 
             if showSuggestions, nameFocused {
-                let suggestions = orders.customerSuggestions(matching: model.customerName)
-                ForEach(suggestions) { suggestion in
-                    Button {
-                        model.customerName = suggestion.name
-                        if let phone = suggestion.phone { model.phone = phone }
-                        nameFocused = false
-                    } label: {
-                        HStack {
-                            Image(systemName: "clock.arrow.circlepath")
-                                .foregroundStyle(.secondary)
-                            Text(suggestion.name)
-                            Spacer()
-                            if let phone = suggestion.phone {
-                                Text(phone)
-                                    .foregroundStyle(.secondary)
-                                    .font(.callout)
-                            }
-                        }
-                    }
-                    .buttonStyle(.plain)
+                let history = orders.customerSuggestions(matching: model.customerName)
+                let historyNames = Set(history.map { $0.name.lowercased() })
+                ForEach(history) { suggestionRow($0, icon: "clock.arrow.circlepath") }
+                ForEach(contactSuggestions.filter { !historyNames.contains($0.name.lowercased()) }) {
+                    suggestionRow($0, icon: "person.crop.circle")
                 }
             }
 
@@ -84,6 +81,28 @@ struct OrderFormFields: View {
                 }
             }
         }
+    }
+
+    @ViewBuilder
+    private func suggestionRow(_ suggestion: CustomerSuggestion, icon: String) -> some View {
+        Button {
+            model.customerName = suggestion.name
+            if let phone = suggestion.phone { model.phone = phone }
+            nameFocused = false
+        } label: {
+            HStack {
+                Image(systemName: icon)
+                    .foregroundStyle(.secondary)
+                Text(suggestion.name)
+                Spacer()
+                if let phone = suggestion.phone {
+                    Text(phone)
+                        .foregroundStyle(.secondary)
+                        .font(.callout)
+                }
+            }
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: Jahody
