@@ -150,9 +150,11 @@ final class OrderStore: ObservableObject {
 
     /// Objednávky čekající na propsání do kalendáře, které má řešit toto
     /// zařízení (naposledy je měnil přihlášený uživatel).
+    /// Jen stav `pending` — objednávky se stavem `error` už automaticky
+    /// neopakujeme (šlo by o nekonečné pokusy), ty jdou znovu ručně z detailu.
     func pendingCalendarOrders(for email: String) -> [Order] {
         upcomingOrders.filter {
-            $0.calendarSyncStatus != .synced && ($0.updatedBy ?? $0.createdBy) == email
+            $0.calendarSyncStatus == .pending && ($0.updatedBy ?? $0.createdBy) == email
         }
     }
 }
