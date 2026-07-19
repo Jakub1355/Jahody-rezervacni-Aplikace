@@ -16,8 +16,8 @@ final class OrderFormModel: ObservableObject {
     @Published var extraItems: [OrderItem] = []
     @Published var note = ""
 
-    /// Rychlé chipy pro jahody.
-    static let quickKgOptions: [Double] = [1, 2, 3, 5]
+    /// Rychlé chipy pro jahody — bedýnky 0,5 kg a 2,5 kg a jejich násobky.
+    static let quickKgOptions: [Double] = [0.5, 1, 1.5, 2, 2.5, 5, 7.5]
     /// Sloty po 30 minutách 7:00–19:30.
     static let timeSlots: [Int] = Array(stride(from: 7 * 60, through: 19 * 60 + 30, by: 30))
 
