@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Hlavní obrazovka — bleskové zadání objednávky během telefonátu (cíl do 15 s).
 struct NewOrderView: View {
@@ -11,42 +12,50 @@ struct NewOrderView: View {
     @State private var savedBannerVisible = false
     @State private var errorMessage: String?
     @State private var showsDictation = false
+    /// Zvýší se po uložení → formulář se odscrolluje nahoru.
+    @State private var scrollToTopTrigger = 0
 
     var body: some View {
         NavigationStack {
-            Form {
-                // Rychlé nadiktování celé objednávky (jméno, telefon, kdy, kolik).
-                Section {
-                    Button {
-                        showsDictation = true
-                    } label: {
-                        Label("Nadiktovat objednávku", systemImage: "mic.fill")
-                            .font(.headline)
-                            .frame(maxWidth: .infinity, minHeight: 48)
-                    }
-                    .buttonStyle(.bordered)
-                    .listRowInsets(EdgeInsets())
-                }
-
-                OrderFormFields(model: model)
-
-                Section {
-                    Button {
-                        save()
-                    } label: {
-                        Text("Uložit objednávku")
-                            .font(.headline)
-                            .frame(maxWidth: .infinity, minHeight: 54)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .listRowInsets(EdgeInsets())
-                    .disabled(!model.canSave)
-                }
-
-                if let errorMessage {
+            ScrollViewReader { proxy in
+                Form {
+                    // Rychlé nadiktování celé objednávky (jméno, telefon, kdy, kolik).
                     Section {
-                        Text(errorMessage).foregroundStyle(.red)
+                        Button {
+                            showsDictation = true
+                        } label: {
+                            Label("Nadiktovat objednávku", systemImage: "mic.fill")
+                                .font(.headline)
+                                .frame(maxWidth: .infinity, minHeight: 48)
+                        }
+                        .buttonStyle(.bordered)
+                        .listRowInsets(EdgeInsets())
                     }
+                    .id("top")
+
+                    OrderFormFields(model: model)
+
+                    Section {
+                        Button {
+                            save()
+                        } label: {
+                            Text("Uložit objednávku")
+                                .font(.headline)
+                                .frame(maxWidth: .infinity, minHeight: 54)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .listRowInsets(EdgeInsets())
+                        .disabled(!model.canSave)
+                    }
+
+                    if let errorMessage {
+                        Section {
+                            Text(errorMessage).foregroundStyle(.red)
+                        }
+                    }
+                }
+                .onChange(of: scrollToTopTrigger) { _, _ in
+                    withAnimation { proxy.scrollTo("top", anchor: .top) }
                 }
             }
             .navigationTitle("Nová objednávka")
@@ -81,7 +90,9 @@ struct NewOrderView: View {
         }
 
         errorMessage = nil
+        dismissKeyboard()
         model.reset()
+        scrollToTopTrigger += 1   // zpět na začátek formuláře
         UINotificationFeedbackGenerator().notificationOccurred(.success)
         withAnimation { savedBannerVisible = true }
         Task {
@@ -91,5 +102,11 @@ struct NewOrderView: View {
 
         // …a událost v kalendáři se vytvoří asynchronně, uložení nesmí blokovat.
         Task { await app.calendarSync.syncPending() }
+    }
+
+    private func dismissKeyboard() {
+        UIApplication.shared.sendAction(
+            #selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil
+        )
     }
 }

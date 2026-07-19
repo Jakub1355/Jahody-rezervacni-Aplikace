@@ -11,7 +11,7 @@ final class OrderFormModel: ObservableObject {
     /// Den vyzvednutí (start dne).
     @Published var pickupDay: Date
     /// Čas vyzvednutí — minuty od půlnoci (po 30 minutách).
-    @Published var pickupMinutes: Int = 16 * 60
+    @Published var pickupMinutes: Int
     /// Další položky kromě jahod.
     @Published var extraItems: [OrderItem] = []
     @Published var note = ""
@@ -23,6 +23,16 @@ final class OrderFormModel: ObservableObject {
 
     init() {
         pickupDay = Calendar.current.startOfDay(for: Date())
+        pickupMinutes = Self.defaultPickupMinutes()
+    }
+
+    /// Výchozí čas vyzvednutí = aktuální čas zařízení zaokrouhlený na nejbližší
+    /// 30minutový slot, omezený na rozsah 7:00–19:30.
+    static func defaultPickupMinutes(now: Date = Date(), calendar: Calendar = .current) -> Int {
+        let comps = calendar.dateComponents([.hour, .minute], from: now)
+        let minutes = (comps.hour ?? 0) * 60 + (comps.minute ?? 0)
+        let rounded = Int((Double(minutes) / 30).rounded()) * 30
+        return min(max(rounded, 7 * 60), 19 * 60 + 30)
     }
 
     var strawberryKg: Double {
@@ -159,7 +169,7 @@ final class OrderFormModel: ObservableObject {
         phone = ""
         strawberryText = ""
         pickupDay = Calendar.current.startOfDay(for: Date())
-        pickupMinutes = 16 * 60
+        pickupMinutes = Self.defaultPickupMinutes()
         extraItems = []
         note = ""
     }

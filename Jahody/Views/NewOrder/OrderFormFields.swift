@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Pole formuláře objednávky — sdílená mezi „Nová objednávka“ a „Detail“.
-/// Optimalizováno na rychlost: chipy, velké dotykové plochy.
+/// Pořadí: zákazník → jahody → další produkty → den → čas → poznámka.
 struct OrderFormFields: View {
     @ObservedObject var model: OrderFormModel
     /// Našeptávání jen při zadávání nové objednávky.
@@ -10,24 +10,48 @@ struct OrderFormFields: View {
     @EnvironmentObject private var orders: OrderStore
     @EnvironmentObject private var products: ProductStore
     @State private var showsOtherDatePicker = false
+    @State private var showsContactPicker = false
     @FocusState private var nameFocused: Bool
 
     var body: some View {
-        // MARK: Zákazník
+        Group {
+            customerSection
+            strawberrySection
+            extraItemsSection
+            pickupDaySection
+            pickupTimeSection
+            noteSection
+        }
+        .sheet(isPresented: $showsContactPicker) {
+            ContactPicker { name, phone in
+                if !name.isEmpty { model.customerName = name }
+                if let phone, !phone.isEmpty { model.phone = phone }
+                showsContactPicker = false
+            }
+            .ignoresSafeArea()
+        }
+    }
+
+    // MARK: Zákazník
+    private var customerSection: some View {
         Section("Zákazník") {
             TextField("Jméno", text: $model.customerName)
                 .textContentType(.name)
                 .focused($nameFocused)
                 .frame(minHeight: 40)
+                .onChange(of: model.customerName) { _, newName in
+                    // Když zákazníka známe z historie, doplní se i telefon (pokud je prázdný).
+                    guard showSuggestions, model.phone.isEmpty,
+                          let phone = orders.phone(forCustomerName: newName) else { return }
+                    model.phone = phone
+                }
 
             if showSuggestions, nameFocused {
                 let suggestions = orders.customerSuggestions(matching: model.customerName)
                 ForEach(suggestions) { suggestion in
                     Button {
                         model.customerName = suggestion.name
-                        if let phone = suggestion.phone {
-                            model.phone = phone
-                        }
+                        if let phone = suggestion.phone { model.phone = phone }
                         nameFocused = false
                     } label: {
                         HStack {
@@ -50,9 +74,20 @@ struct OrderFormFields: View {
                 .keyboardType(.phonePad)
                 .textContentType(.telephoneNumber)
                 .frame(minHeight: 40)
-        }
 
-        // MARK: Jahody
+            if showSuggestions {
+                Button {
+                    showsContactPicker = true
+                } label: {
+                    Label("Vybrat z kontaktů", systemImage: "person.crop.circle.badge.plus")
+                        .frame(minHeight: 40)
+                }
+            }
+        }
+    }
+
+    // MARK: Jahody
+    private var strawberrySection: some View {
         Section("Jahody (kg)") {
             FlowLayout {
                 ForEach(OrderFormModel.quickKgOptions, id: \.self) { kg in
@@ -68,65 +103,11 @@ struct OrderFormFields: View {
                 .keyboardType(.decimalPad)
                 .frame(minHeight: 40)
         }
+    }
 
-        // MARK: Den vyzvednutí
-        Section("Den vyzvednutí") {
-            FlowLayout {
-                ForEach(0..<3, id: \.self) { offset in
-                    let day = Calendar.current.date(
-                        byAdding: .day,
-                        value: offset,
-                        to: Calendar.current.startOfDay(for: Date())
-                    )!
-                    Chip(
-                        label: CzechFormat.relativeDayLabel(for: day),
-                        isSelected: model.pickupDay == day
-                    ) {
-                        model.pickupDay = day
-                        showsOtherDatePicker = false
-                    }
-                }
-                Chip(label: "Jiný den…", isSelected: showsOtherDatePicker || !isQuickDay) {
-                    showsOtherDatePicker.toggle()
-                }
-            }
-            if showsOtherDatePicker || !isQuickDay {
-                DatePicker(
-                    "Datum",
-                    selection: Binding(
-                        get: { model.pickupDay },
-                        set: { model.pickupDay = Calendar.current.startOfDay(for: $0) }
-                    ),
-                    displayedComponents: .date
-                )
-                .datePickerStyle(.graphical)
-                .environment(\.locale, CzechFormat.locale)
-            }
-        }
-
-        // MARK: Čas vyzvednutí
-        Section {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(OrderFormModel.timeSlots, id: \.self) { minutes in
-                        Chip(
-                            label: Self.timeLabel(minutes: minutes),
-                            isSelected: model.pickupMinutes == minutes
-                        ) {
-                            model.pickupMinutes = minutes
-                        }
-                        .id(minutes)
-                    }
-                }
-                .padding(.vertical, 2)
-            }
-            .scrollPosition(id: .constant(Optional(model.pickupMinutes)), anchor: .center)
-        } header: {
-            Text("Čas vyzvednutí — \(Self.timeLabel(minutes: model.pickupMinutes))")
-        }
-
-        // MARK: Další položky
-        Section("Další položky") {
+    // MARK: Další položky
+    private var extraItemsSection: some View {
+        Section("Další produkty") {
             let extraProducts = products.activeProducts
                 .filter { !Order.isStrawberry(productName: $0.name) }
             if extraProducts.isEmpty {
@@ -172,8 +153,70 @@ struct OrderFormFields: View {
                 .frame(minHeight: 40)
             }
         }
+    }
 
-        // MARK: Poznámka
+    // MARK: Den vyzvednutí
+    private var pickupDaySection: some View {
+        Section("Den vyzvednutí") {
+            FlowLayout {
+                ForEach(0..<3, id: \.self) { offset in
+                    let day = Calendar.current.date(
+                        byAdding: .day,
+                        value: offset,
+                        to: Calendar.current.startOfDay(for: Date())
+                    )!
+                    Chip(
+                        label: CzechFormat.relativeDayLabel(for: day),
+                        isSelected: model.pickupDay == day
+                    ) {
+                        model.pickupDay = day
+                        showsOtherDatePicker = false
+                    }
+                }
+                Chip(label: "Jiný den…", isSelected: showsOtherDatePicker || !isQuickDay) {
+                    showsOtherDatePicker.toggle()
+                }
+            }
+            if showsOtherDatePicker || !isQuickDay {
+                DatePicker(
+                    "Datum",
+                    selection: Binding(
+                        get: { model.pickupDay },
+                        set: { model.pickupDay = Calendar.current.startOfDay(for: $0) }
+                    ),
+                    displayedComponents: .date
+                )
+                .datePickerStyle(.graphical)
+                .environment(\.locale, CzechFormat.locale)
+            }
+        }
+    }
+
+    // MARK: Čas vyzvednutí
+    private var pickupTimeSection: some View {
+        Section {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(OrderFormModel.timeSlots, id: \.self) { minutes in
+                        Chip(
+                            label: Self.timeLabel(minutes: minutes),
+                            isSelected: model.pickupMinutes == minutes
+                        ) {
+                            model.pickupMinutes = minutes
+                        }
+                        .id(minutes)
+                    }
+                }
+                .padding(.vertical, 2)
+            }
+            .scrollPosition(id: .constant(Optional(model.pickupMinutes)), anchor: .center)
+        } header: {
+            Text("Čas vyzvednutí — \(Self.timeLabel(minutes: model.pickupMinutes))")
+        }
+    }
+
+    // MARK: Poznámka
+    private var noteSection: some View {
         Section("Poznámka") {
             TextField("Volný text…", text: $model.note, axis: .vertical)
                 .lineLimit(1...4)

@@ -2,6 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- Výběr zákazníka z kontaktů při zadávání objednávky -->
+	<key>NSContactsUsageDescription</key>
+	<string>Kontakty slouží k rychlému vyplnění jména a telefonu zákazníka při zadávání objednávky.</string>
+
 	<!-- Diktování objednávky hlasem -->
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Mikrofon slouží k nadiktování objednávky (jméno, telefon, kdy a kolik) během telefonátu.</string>

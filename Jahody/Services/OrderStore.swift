@@ -146,6 +146,20 @@ final class OrderStore: ObservableObject {
         return result
     }
 
+    /// Telefon k přesně zadanému jménu zákazníka (z nejnovější objednávky).
+    /// Slouží k automatickému doplnění telefonu při psaní jména.
+    func phone(forCustomerName name: String) -> String? {
+        let query = name.folded
+        guard !query.isEmpty else { return nil }
+        let all = (upcomingOrders + historyOrders).sorted { $0.createdAt > $1.createdAt }
+        for order in all where order.customerName.folded == query {
+            if let phone = order.phone?.trimmingCharacters(in: .whitespaces), !phone.isEmpty {
+                return phone
+            }
+        }
+        return nil
+    }
+
     // MARK: - Synchronizace s kalendářem
 
     /// Objednávky čekající na propsání do kalendáře, které má řešit toto
