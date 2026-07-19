@@ -58,13 +58,14 @@ enum DictationParser {
         let strawberry = extractStrawberryKg(tokens: tokens, folded: folded, products: products)
         result.strawberryKg = strawberry.kg
         result.extraItems = extractExtraItems(
+            tokens: tokens,
             folded: folded,
             products: products,
             consumed: strawberry.consumed
         )
 
-        // 5) Jméno = vedoucí slova před prvním číslem/klíčovým slovem.
-        result.customerName = extractName(tokens: tokens, folded: folded)
+        // 5) Jméno = vedoucí slova před prvním číslem/klíčovým slovem/produktem.
+        result.customerName = extractName(tokens: tokens, folded: folded, products: products)
 
         return result
     }
@@ -220,33 +221,39 @@ enum DictationParser {
             return (nil, consumed)
         }
 
+        let nonStrawberry = products.filter { !Order.isStrawberry(productName: $0.name) }
+
         // Pokud za „kila“ následuje jiný produkt (např. „dvě kila sýra“),
         // nejde o jahody — nechá to na scanu dalších položek.
-        if markerIndex + 1 < folded.count {
-            let next = folded[markerIndex + 1]
-            let nonStrawberry = products.filter { !Order.isStrawberry(productName: $0.name) }
-            if nonStrawberry.contains(where: { next.hasPrefix(productStem($0.name)) }) {
-                return (nil, consumed)
-            }
+        if markerIndex + 1 < folded.count,
+           nonStrawberry.contains(where: { matchesProduct(folded[markerIndex + 1], $0) }) {
+            return (nil, consumed)
         }
 
         // Množství čteme zpět před markerem: „tři a půl kila“, „půl kila“, „1,5 kg“.
         var value = 0.0
         var found = false
+        var earliest = markerIndex
         var j = markerIndex - 1
         if j >= 0, folded[j] == "pul" {
             value += 0.5
             found = true
-            consumed.insert(j)
+            consumed.insert(j); earliest = j
             j -= 1
-            if j >= 0, folded[j] == "a" { consumed.insert(j); j -= 1 }
+            if j >= 0, folded[j] == "a" { consumed.insert(j); earliest = j; j -= 1 }
         }
         if j >= 0, let whole = doubleValue(tokens[j], folded: folded[j]) {
             value += whole
             found = true
-            consumed.insert(j)
+            consumed.insert(j); earliest = j
         }
         consumed.insert(markerIndex)
+
+        // Produkt hned před množstvím → patří jemu, ne jahodám (např. „brambory tři kila“).
+        if earliest - 1 >= 0,
+           nonStrawberry.contains(where: { matchesProduct(folded[earliest - 1], $0) }) {
+            return (nil, Set<Int>())
+        }
 
         return found && value > 0 ? (value, consumed) : (nil, consumed)
     }
@@ -254,24 +261,26 @@ enum DictationParser {
     // MARK: - Další položky
 
     private static func extractExtraItems(
+        tokens: [String],
         folded: [String],
         products: [Product],
         consumed: Set<Int>
     ) -> [OrderItem] {
-        let candidates = products
-            .filter { $0.isActive && !Order.isStrawberry(productName: $0.name) }
-            .map { (product: $0, stem: productStem($0.name)) }
+        let candidates = products.filter { $0.isActive && !Order.isStrawberry(productName: $0.name) }
 
+        var used = consumed
         var items: [OrderItem] = []
         var usedProductNames = Set<String>()
 
-        for i in folded.indices where !consumed.contains(i) {
-            guard let quantity = doubleValue(nil, folded: folded[i]), quantity > 0 else { continue }
-            // Název produktu smí následovat do 3 tokenů za číslem.
-            for lookahead in 1...3 where i + lookahead < folded.count {
-                let word = folded[i + lookahead]
-                guard word.count >= 3 else { continue }
-                if let match = candidates.first(where: { word.hasPrefix($0.stem) }),
+        for i in folded.indices where !used.contains(i) {
+            guard let quantity = doubleValue(tokens[i], folded: folded[i]), quantity > 0 else { continue }
+            if isTimeNumber(index: i, folded: folded) { continue }   // „v pět“, „pět hodin“ = čas, ne množství
+
+            // Produkt může být za číslem („deset vajec“) i před ním („brambory tři“).
+            for offset in [1, 2, 3, -1, -2, -3] {
+                let j = i + offset
+                guard j >= 0, j < folded.count, !used.contains(j), folded[j].count >= 3 else { continue }
+                if let match = candidates.first(where: { matchesProduct(folded[j], $0) }),
                    !usedProductNames.contains(match.product.name) {
                     items.append(OrderItem(
                         productName: match.product.name,
@@ -279,11 +288,31 @@ enum DictationParser {
                         unit: match.product.unit.rawValue
                     ))
                     usedProductNames.insert(match.product.name)
+                    used.insert(i); used.insert(j)
                     break
                 }
             }
         }
         return items
+    }
+
+    /// Je číslo na daném indexu časový údaj (po „v/ve/o“ nebo před „hodin“)?
+    private static func isTimeNumber(index i: Int, folded: [String]) -> Bool {
+        if i - 1 >= 0, ["v", "ve", "o"].contains(folded[i - 1]) { return true }
+        if i + 1 < folded.count, folded[i + 1].hasPrefix("hodin") { return true }
+        return false
+    }
+
+    /// Odpovídá token názvu produktu? Používá bezpečný 5znakový základ,
+    /// aby se jména jako „Marek“ nepletla s „marmeládou“.
+    private static func matchesProduct(_ token: String, _ product: Product) -> Bool {
+        let name = fold(product.name)
+        guard !name.isEmpty else { return false }
+        let stem = String(name.prefix(min(name.count, 5)))
+        if token.hasPrefix(stem) { return true }
+        // vajíčka ↔ vejce
+        if name.hasPrefix("vaji"), token.hasPrefix("vejc") || token.hasPrefix("vajec") { return true }
+        return false
     }
 
     // MARK: - Jméno
@@ -304,14 +333,15 @@ enum DictationParser {
         "pan", "pani", "zakaznik", "je", "tady", "ma",
     ]
 
-    private static func extractName(tokens: [String], folded: [String]) -> String? {
+    private static func extractName(tokens: [String], folded: [String], products: [Product]) -> String? {
         var collected: [String] = []
         for i in tokens.indices {
             let f = folded[i]
             if collected.isEmpty, nameFillerWords.contains(f) { continue }
-            // Konec jména: číslo nebo klíčové slovo.
+            // Konec jména: číslo, klíčové slovo nebo název produktu.
             if doubleValue(tokens[i], folded: f) != nil { break }
             if nameStopWords.contains(f) || weekdayStems.contains(where: { f.hasPrefix($0.stem) }) { break }
+            if products.contains(where: { matchesProduct(f, $0) }) { break }
             guard f.first?.isLetter == true else { break }
             collected.append(capitalizeFirst(tokens[i]))
             if collected.count >= 3 { break }

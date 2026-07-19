@@ -1,7 +1,9 @@
 import SwiftUI
+import UIKit
 
-/// Nadiktování objednávky: uživatel řekne jméno, telefon, kdy přijede a kolik,
-/// aplikace to rozpozná a předvyplní formulář. Vše jde pak ručně upravit.
+/// Nadiktování objednávky. Diktovat lze **po částech a v jakémkoliv pořadí** —
+/// hodnoty se sčítají (jméno, telefon, produkty, den, čas). Tlačítko „Začít
+/// znovu“ vše vymaže. Vše jde pak ještě ručně upravit ve formuláři.
 struct DictationSheet: View {
     @ObservedObject var model: OrderFormModel
     /// Aktivní produkty pro rozpoznání dalších položek.
@@ -9,7 +11,17 @@ struct DictationSheet: View {
 
     @StateObject private var speech = SpeechDictationService()
     @Environment(\.dismiss) private var dismiss
-    @State private var preview: DictationResult?
+    /// Text z předchozích nahrávek (aktuální nahrávka je ve `speech.transcript`).
+    @State private var committedTranscript = ""
+
+    /// Celý dosud nadiktovaný text (dřívější části + probíhající nahrávka).
+    private var combinedTranscript: String {
+        (committedTranscript + " " + speech.transcript).trimmingCharacters(in: .whitespaces)
+    }
+
+    private var preview: DictationResult? {
+        combinedTranscript.isEmpty ? nil : DictationParser.parse(combinedTranscript, products: products)
+    }
 
     var body: some View {
         NavigationStack {
@@ -40,9 +52,15 @@ struct DictationSheet: View {
                     }
                 }
             }
-            .onChange(of: speech.transcript) { _, newValue in
-                // Průběžný náhled rozpoznaných polí.
-                preview = newValue.isEmpty ? nil : DictationParser.parse(newValue, products: products)
+            .onChange(of: speech.isRecording) { wasRecording, isRecording in
+                // Po dokončení nahrávky si její text „uložíme“ a připravíme se na další.
+                if wasRecording && !isRecording {
+                    let text = speech.transcript.trimmingCharacters(in: .whitespaces)
+                    if !text.isEmpty {
+                        committedTranscript = combinedTranscript
+                    }
+                    speech.reset()
+                }
             }
         }
     }
@@ -51,10 +69,11 @@ struct DictationSheet: View {
 
     private var instructions: some View {
         VStack(spacing: 6) {
-            Text("Řekněte například:")
+            Text("Diktujte klidně po částech, v jakémkoliv pořadí — hodnoty se sčítají.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
-            Text("„Jana Nováková, telefon 777 123 456, přijede zítra v pět, chce tři kila jahod.“")
+                .multilineTextAlignment(.center)
+            Text("Např. „Jana Nováková, 777 123 456“ — pak znovu „tři kila jahod a deset vajec“ — pak „zítra ve tři“.")
                 .font(.callout)
                 .italic()
                 .multilineTextAlignment(.center)
@@ -85,9 +104,7 @@ struct DictationSheet: View {
             }
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(speech.isRecording ? "Zastavit diktování" : "Spustit diktování")
-
-        // Popisek pod tlačítkem
+        .accessibilityLabel(speech.isRecording ? "Zastavit diktování" : "Přidat diktováním")
     }
 
     private var transcriptView: some View {
@@ -96,13 +113,13 @@ struct DictationSheet: View {
                 Text("Poslouchám…")
                     .font(.headline)
                     .foregroundStyle(.red)
-            } else if speech.transcript.isEmpty {
+            } else if combinedTranscript.isEmpty {
                 Text("Klepněte na mikrofon a mluvte")
                     .font(.headline)
                     .foregroundStyle(.secondary)
             }
-            if !speech.transcript.isEmpty {
-                Text(speech.transcript)
+            if !combinedTranscript.isEmpty {
+                Text(combinedTranscript)
                     .font(.body)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity)
@@ -163,10 +180,10 @@ struct DictationSheet: View {
             .buttonStyle(.borderedProminent)
             .disabled(preview == nil || speech.isRecording)
 
-            if !speech.transcript.isEmpty, !speech.isRecording {
-                Button("Zkusit znovu") {
+            if !combinedTranscript.isEmpty, !speech.isRecording {
+                Button("Začít znovu", role: .destructive) {
+                    committedTranscript = ""
                     speech.reset()
-                    preview = nil
                 }
             }
         }
@@ -200,6 +217,7 @@ struct DictationSheet: View {
     private func applyAndDismiss() {
         guard let result = preview else { return }
         model.apply(dictation: result)
+        committedTranscript = ""
         speech.reset()
         UINotificationFeedbackGenerator().notificationOccurred(.success)
         dismiss()

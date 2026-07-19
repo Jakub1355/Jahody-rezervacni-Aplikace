@@ -148,6 +148,22 @@ final class DictationParserTests: XCTestCase {
         XCTAssertTrue(result.extraItems.contains { $0.productName == "Vajíčka" && $0.quantity == 10 })
     }
 
+    func testNameDoesNotGrabProductWord() {
+        // Po jménu následuje produkt „jahody“ — nesmí se dostat do jména.
+        let result = parse("Jana Nováková jahody tři kila")
+        XCTAssertEqual(result.customerName, "Jana Nováková")
+        XCTAssertEqual(result.strawberryKg, 3)
+    }
+
+    func testProductBeforeQuantity() {
+        // Produkt může být i před množstvím: „brambory tři kila“.
+        let products = Product.defaults + [Product(id: "brambory", name: "Brambory", unit: .kg)]
+        let result = DictationParser.parse("Jana brambory tři kila", products: products, now: now, calendar: calendar)
+        XCTAssertEqual(result.customerName, "Jana")
+        XCTAssertNil(result.strawberryKg)
+        XCTAssertTrue(result.extraItems.contains { $0.productName == "Brambory" && $0.quantity == 3 })
+    }
+
     // MARK: Poznámka
 
     func testNoteAfterKeyword() {
