@@ -19,13 +19,20 @@ struct JahodyApp: App {
                 .environmentObject(app.orders)
                 .environmentObject(app.products)
                 .environmentObject(app.calendarSync)
+                .environmentObject(app.biometricLock)
                 .onOpenURL { url in
                     GIDSignIn.sharedInstance.handle(url)
                 }
                 .onChange(of: scenePhase) { _, phase in
-                    // Návrat do popředí → doběhnout odloženou synchronizaci kalendáře.
-                    if phase == .active {
+                    switch phase {
+                    case .active:
+                        // Odemknout Face ID (pokud je zámek) a doběhnout synchronizaci.
+                        app.biometricLock.authenticateIfNeeded()
                         Task { await app.calendarSync.syncPending() }
+                    case .background:
+                        app.biometricLock.lockIfEnabled()
+                    default:
+                        break
                     }
                 }
         }

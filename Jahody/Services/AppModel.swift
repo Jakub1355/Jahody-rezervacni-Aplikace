@@ -13,6 +13,7 @@ final class AppModel: ObservableObject {
     let orders: OrderStore
     let products: ProductStore
     let calendarSync: CalendarSyncManager
+    let biometricLock = BiometricLock()
 
     /// Nakonfiguruje Firebase, pokud je v projektu GoogleService-Info.plist.
     /// Bez něj aplikace ukáže obrazovku s odkazem na SETUP.md.

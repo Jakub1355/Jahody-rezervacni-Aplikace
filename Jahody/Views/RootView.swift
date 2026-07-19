@@ -5,6 +5,7 @@ struct RootView: View {
     @EnvironmentObject private var app: AppModel
     @EnvironmentObject private var auth: AuthService
     @EnvironmentObject private var orders: OrderStore
+    @EnvironmentObject private var biometricLock: BiometricLock
 
     var body: some View {
         Group {
@@ -25,6 +26,40 @@ struct RootView: View {
                     }
             }
         }
+        .overlay {
+            if biometricLock.isLocked {
+                LockScreenView()
+            }
+        }
+    }
+}
+
+/// Zámková obrazovka — překryje appku, dokud se uživatel neověří Face ID / kódem.
+private struct LockScreenView: View {
+    @EnvironmentObject private var biometricLock: BiometricLock
+
+    var body: some View {
+        ZStack {
+            Color(.systemBackground).ignoresSafeArea()
+            VStack(spacing: 20) {
+                Image("StrawberryLogo")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 84, height: 84)
+                Text("Jahody").font(.title2.bold())
+                Image(systemName: "faceid")
+                    .font(.system(size: 40))
+                    .foregroundStyle(.secondary)
+                Button {
+                    biometricLock.authenticateIfNeeded()
+                } label: {
+                    Text("Odemknout")
+                        .frame(minWidth: 180, minHeight: 44)
+                }
+                .buttonStyle(.borderedProminent)
+            }
+        }
+        .onAppear { biometricLock.authenticateIfNeeded() }
     }
 }
 

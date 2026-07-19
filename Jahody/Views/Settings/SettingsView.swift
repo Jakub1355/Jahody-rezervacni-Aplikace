@@ -5,7 +5,9 @@ struct SettingsView: View {
     @EnvironmentObject private var auth: AuthService
     @EnvironmentObject private var calendarSync: CalendarSyncManager
 
+    @EnvironmentObject private var biometricLock: BiometricLock
     @AppStorage(AppSettingsKeys.readyMessage) private var readyMessage = AppSettingsKeys.defaultReadyMessage
+    @AppStorage(AppSettingsKeys.faceIDLock) private var faceIDLock = false
 
     var body: some View {
         NavigationStack {
@@ -54,6 +56,17 @@ struct SettingsView: View {
                     Text("Zpráva zákazníkovi")
                 } footer: {
                     Text("Přednastavený text pro SMS / WhatsApp / Messenger, když dáváte vědět, že je objednávka připravená. Použije se z detailu objednávky.")
+                }
+
+                Section {
+                    Toggle("Zamykat aplikaci Face ID", isOn: $faceIDLock)
+                        .onChange(of: faceIDLock) { _, _ in
+                            biometricLock.settingChanged()
+                        }
+                } header: {
+                    Text("Zabezpečení")
+                } footer: {
+                    Text("Po zapnutí bude aplikace při každém otevření vyžadovat Face ID (nebo kód telefonu). Přihlášení Googlem zůstává.")
                 }
 
                 Section {
