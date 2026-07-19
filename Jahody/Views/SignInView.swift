@@ -2,16 +2,18 @@ import SwiftUI
 
 struct SignInView: View {
     @EnvironmentObject private var auth: AuthService
+    @AppStorage(AppSettingsKeys.appIconChoice) private var iconChoice = 0
     @State private var errorMessage: String?
     @State private var isSigningIn = false
 
     var body: some View {
         VStack(spacing: 24) {
             Spacer()
-            Image("StrawberryLogo")
+            Image((AppIconOption(rawValue: iconChoice) ?? .realistic).loginAsset)
                 .resizable()
                 .scaledToFit()
                 .frame(width: 96, height: 96)
+                .clipShape(RoundedRectangle(cornerRadius: 20))
             Text("Jahody")
                 .font(.largeTitle.bold())
             Text("Objednávky z farmy pro celou rodinu")

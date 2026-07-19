@@ -8,4 +8,7 @@ enum AppSettingsKeys {
 
     /// Zamykat aplikaci Face ID / kódem při otevření.
     static let faceIDLock = "faceIDLock"
+
+    /// Zvolená ikona aplikace (0 = realistická, 1 = obrys červená, 2 = obrys bílá).
+    static let appIconChoice = "appIconChoice"
 }
