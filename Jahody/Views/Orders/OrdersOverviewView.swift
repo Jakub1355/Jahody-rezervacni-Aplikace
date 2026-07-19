@@ -60,7 +60,7 @@ struct DayHeaderView: View {
                     ProductBadge(
                         iconName: "ic_jahody",
                         text: "\(CzechFormat.quantity(group.strawberryKg)) kg",
-                        iconSize: 20
+                        iconSize: 30
                     )
                     .font(.subheadline.bold())
                     .foregroundStyle(Color.accentColor)
@@ -68,16 +68,16 @@ struct DayHeaderView: View {
             }
             let otherTotals = DailySummary.otherItemTotals(group.orders)
             if !otherTotals.isEmpty {
-                HStack(spacing: 10) {
+                HStack(spacing: 12) {
                     ForEach(otherTotals, id: \.name) { total in
                         ProductBadge(
                             iconName: ProductIcon.assetName(for: total.name),
                             text: "\(CzechFormat.quantity(total.quantity)) \(total.unit)",
-                            iconSize: 16
+                            iconSize: 26
                         )
                     }
                 }
-                .font(.caption)
+                .font(.footnote)
                 .textCase(nil)
             }
         }
@@ -104,12 +104,12 @@ struct OrderRowView: View {
                 Text(order.customerName)
                     .font(.body.weight(.medium))
                     .strikethrough(order.status == .zrusena)
-                HStack(spacing: 10) {
+                HStack(spacing: 12) {
                     ForEach(order.items) { item in
                         ProductBadge(
                             iconName: ProductIcon.assetName(for: item.productName),
                             text: "\(CzechFormat.quantity(item.quantity)) \(item.unit)",
-                            iconSize: 18
+                            iconSize: 30
                         )
                     }
                 }
@@ -184,7 +184,7 @@ struct HistoryView: View {
                                     ProductBadge(
                                         iconName: "ic_jahody",
                                         text: "\(CzechFormat.quantity(group.strawberryKg)) kg",
-                                        iconSize: 18
+                                        iconSize: 26
                                     )
                                     .font(.subheadline.bold())
                                 }

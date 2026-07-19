@@ -150,7 +150,7 @@ struct OrderFormFields: View {
                     Text(item.productName)
                     Spacer()
                     Button {
-                        model.changeQuantity(of: item, by: -1)
+                        model.changeQuantity(of: item, steps: -1)
                     } label: {
                         Image(systemName: "minus.circle.fill")
                             .font(.title2)
@@ -161,7 +161,7 @@ struct OrderFormFields: View {
                         .font(.body.monospacedDigit())
                         .frame(minWidth: 56)
                     Button {
-                        model.changeQuantity(of: item, by: 1)
+                        model.changeQuantity(of: item, steps: 1)
                     } label: {
                         Image(systemName: "plus.circle.fill")
                             .font(.title2)

@@ -1,7 +1,8 @@
 import SwiftUI
+import UIKit
 
 /// Detail objednávky: úprava všech polí (propíše se do kalendářní události),
-/// Zavolat / SMS, zrušení objednávky.
+/// Zavolat / zpráva (SMS, WhatsApp, Messenger), zrušení objednávky.
 struct OrderDetailView: View {
     let orderId: String
 
@@ -11,6 +12,9 @@ struct OrderDetailView: View {
     @EnvironmentObject private var products: ProductStore
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
+
+    /// Přednastavená zpráva zákazníkovi (upravitelná v Nastavení).
+    @AppStorage(AppSettingsKeys.readyMessage) private var readyMessage = AppSettingsKeys.defaultReadyMessage
 
     @StateObject private var model = OrderFormModel()
     @State private var isLoaded = false
@@ -52,19 +56,37 @@ struct OrderDetailView: View {
 
                     // Kontakt na objednávajícího
                     if let phone = order.phone, !phone.isEmpty {
-                        Section("Kontakt") {
+                        Section {
                             Button {
-                                call(phone, scheme: "tel")
+                                call(phone)
                             } label: {
                                 Label("Zavolat \(phone)", systemImage: "phone.fill")
-                                    .frame(minHeight: 40)
+                                    .frame(minHeight: 44)
                             }
                             Button {
-                                call(phone, scheme: "sms")
+                                sendSMS(to: phone)
                             } label: {
-                                Label("SMS", systemImage: "message.fill")
-                                    .frame(minHeight: 40)
+                                Label("SMS zpráva", systemImage: "message.fill")
+                                    .frame(minHeight: 44)
                             }
+                            Button {
+                                sendWhatsApp(to: phone)
+                            } label: {
+                                Label("WhatsApp", systemImage: "phone.bubble.fill")
+                                    .frame(minHeight: 44)
+                                    .tint(.green)
+                            }
+                            Button {
+                                sendMessenger()
+                            } label: {
+                                Label("Messenger", systemImage: "bubble.left.and.bubble.right.fill")
+                                    .frame(minHeight: 44)
+                                    .tint(.blue)
+                            }
+                        } header: {
+                            Text("Kontakt")
+                        } footer: {
+                            Text("Odešle se zpráva: „\(readyMessage)"  Text upravíte v Nastavení. (Messenger neumí předvyplnit zprávu na číslo — text se zkopíruje a otevře se aplikace, kde ho vložíte.)")
                         }
                     }
 
@@ -159,10 +181,52 @@ struct OrderDetailView: View {
         dismiss()
     }
 
-    private func call(_ phone: String, scheme: String) {
-        let cleaned = phone.replacingOccurrences(of: " ", with: "")
-        if let url = URL(string: "\(scheme)://\(cleaned)") {
+    private func call(_ phone: String) {
+        if let url = URL(string: "tel:\(digitsAndPlus(phone))") {
             openURL(url)
         }
+    }
+
+    private func sendSMS(to phone: String) {
+        let body = readyMessage.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        if let url = URL(string: "sms:\(digitsAndPlus(phone))&body=\(body)") {
+            openURL(url)
+        }
+    }
+
+    private func sendWhatsApp(to phone: String) {
+        let text = readyMessage.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        if let url = URL(string: "https://wa.me/\(internationalDigits(phone))?text=\(text)") {
+            openURL(url)
+        }
+    }
+
+    private func sendMessenger() {
+        // Messenger neumí otevřít chat na telefonní číslo s předvyplněnou zprávou,
+        // proto text zkopírujeme a otevřeme aplikaci — uživatel vybere kontakt a vloží.
+        UIPasteboard.general.string = readyMessage
+        if let app = URL(string: "fb-messenger://"), UIApplication.shared.canOpenURL(app) {
+            openURL(app)
+        } else if let web = URL(string: "https://www.messenger.com/") {
+            openURL(web)
+        }
+    }
+
+    /// Ponechá jen číslice (a úvodní +) — pro tel:/sms:.
+    private func digitsAndPlus(_ phone: String) -> String {
+        var out = ""
+        for (index, ch) in phone.enumerated() {
+            if ch.isNumber { out.append(ch) }
+            else if ch == "+" && index == 0 { out.append(ch) }
+        }
+        return out
+    }
+
+    /// Mezinárodní číslo bez + a mezer (pro WhatsApp). 9místné české číslo dostane 420.
+    private func internationalDigits(_ phone: String) -> String {
+        var digits = phone.filter(\.isNumber)
+        if digits.hasPrefix("00") { digits = String(digits.dropFirst(2)) }
+        if digits.count == 9 { digits = "420" + digits }
+        return digits
     }
 }

@@ -24,6 +24,26 @@ struct Product: Identifiable, Codable, Equatable, Hashable {
 }
 
 extension Product {
+    /// Po kolika jednotkách se produkt obvykle objednává (krok tlačítek +/−
+    /// a výchozí množství). Vajíčka po 10, ostatní po 1.
+    var quantityStep: Double { ProductQuantity.step(forProductName: name) }
+}
+
+/// Krok množství podle názvu produktu — funguje i pro už uložené produkty
+/// (neukládá se do dat, odvozuje se z názvu).
+enum ProductQuantity {
+    static func step(forProductName name: String) -> Double {
+        let n = name
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: CzechFormat.locale)
+            .lowercased()
+        if n.hasPrefix("vaj") || n.contains("vejc") || n.contains("vajec") {
+            return 10   // vajíčka po deseti
+        }
+        return 1
+    }
+}
+
+extension Product {
     /// Výchozí naplnění číselníku. Pevná ID dokumentů → seedování je idempotentní
     /// (dvě zařízení najednou nevytvoří duplicity).
     static let defaults: [Product] = [

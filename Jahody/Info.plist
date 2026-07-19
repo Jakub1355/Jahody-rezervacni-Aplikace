@@ -8,6 +8,13 @@
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Rozpoznávání řeči převede nadiktovanou objednávku na text a předvyplní formulář.</string>
 
+	<!-- Zjištění, zda je nainstalovaný Messenger (pro tlačítko Messenger u objednávky) -->
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>fb-messenger</string>
+		<string>whatsapp</string>
+	</array>
+
 	<!-- URL schéma pro návrat z přihlášení Googlem.
 	     Nahraďte hodnotu REVERSED_CLIENT_ID z vašeho GoogleService-Info.plist — viz SETUP.md, krok 5. -->
 	<key>CFBundleURLTypes</key>

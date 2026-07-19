@@ -58,16 +58,19 @@ final class OrderFormModel: ObservableObject {
     }
 
     func addExtraItem(product: Product) {
+        let step = product.quantityStep
         if let index = extraItems.firstIndex(where: { $0.productName == product.name }) {
-            extraItems[index].quantity += 1
+            extraItems[index].quantity += step
         } else {
-            extraItems.append(OrderItem(productName: product.name, quantity: 1, unit: product.unit.rawValue))
+            extraItems.append(OrderItem(productName: product.name, quantity: step, unit: product.unit.rawValue))
         }
     }
 
-    func changeQuantity(of item: OrderItem, by delta: Double) {
+    /// Změní množství o `steps` kroků (krok podle produktu — vajíčka po 10).
+    func changeQuantity(of item: OrderItem, steps: Double) {
         guard let index = extraItems.firstIndex(where: { $0.id == item.id }) else { return }
-        let newQuantity = extraItems[index].quantity + delta
+        let step = ProductQuantity.step(forProductName: item.productName)
+        let newQuantity = extraItems[index].quantity + steps * step
         if newQuantity <= 0 {
             extraItems.remove(at: index)
         } else {

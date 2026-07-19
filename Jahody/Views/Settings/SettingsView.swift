@@ -5,6 +5,8 @@ struct SettingsView: View {
     @EnvironmentObject private var auth: AuthService
     @EnvironmentObject private var calendarSync: CalendarSyncManager
 
+    @AppStorage(AppSettingsKeys.readyMessage) private var readyMessage = AppSettingsKeys.defaultReadyMessage
+
     var body: some View {
         NavigationStack {
             Form {
@@ -37,6 +39,21 @@ struct SettingsView: View {
                     NavigationLink("Správa číselníku produktů") {
                         ProductsSettingsView()
                     }
+                }
+
+                Section {
+                    TextField("Zpráva zákazníkovi", text: $readyMessage, axis: .vertical)
+                        .lineLimit(2...5)
+                    if readyMessage != AppSettingsKeys.defaultReadyMessage {
+                        Button("Obnovit výchozí text") {
+                            readyMessage = AppSettingsKeys.defaultReadyMessage
+                        }
+                        .font(.callout)
+                    }
+                } header: {
+                    Text("Zpráva zákazníkovi")
+                } footer: {
+                    Text("Přednastavený text pro SMS / WhatsApp / Messenger, když dáváte vědět, že je objednávka připravená. Použije se z detailu objednávky.")
                 }
 
                 Section {
