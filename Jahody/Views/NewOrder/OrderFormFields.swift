@@ -88,7 +88,7 @@ struct OrderFormFields: View {
 
     // MARK: Jahody
     private var strawberrySection: some View {
-        Section("Jahody (kg)") {
+        Section {
             FlowLayout {
                 ForEach(OrderFormModel.quickKgOptions, id: \.self) { kg in
                     Chip(
@@ -102,6 +102,12 @@ struct OrderFormFields: View {
             TextField("Jiné množství, např. 0,5", text: $model.strawberryText)
                 .keyboardType(.decimalPad)
                 .frame(minHeight: 40)
+        } header: {
+            Label {
+                Text("Jahody (kg)")
+            } icon: {
+                Image("ic_jahody").resizable().scaledToFit().frame(width: 20, height: 20)
+            }
         }
     }
 
@@ -118,6 +124,7 @@ struct OrderFormFields: View {
                     ForEach(extraProducts) { product in
                         Chip(
                             label: product.name,
+                            iconName: ProductIcon.assetName(for: product.name),
                             isSelected: model.extraItems.contains { $0.productName == product.name }
                         ) {
                             model.addExtraItem(product: product)
@@ -128,6 +135,10 @@ struct OrderFormFields: View {
 
             ForEach(model.extraItems) { item in
                 HStack {
+                    Image(ProductIcon.assetName(for: item.productName))
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 26, height: 26)
                     Text(item.productName)
                     Spacer()
                     Button {

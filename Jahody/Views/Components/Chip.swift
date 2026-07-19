@@ -4,21 +4,31 @@ import SwiftUI
 /// (často jednou rukou s telefonem u ucha).
 struct Chip: View {
     let label: String
+    /// Volitelná ikona (název obrázku v Assets) vlevo od textu.
+    var iconName: String? = nil
     let isSelected: Bool
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            Text(label)
-                .font(.body.weight(isSelected ? .bold : .regular))
-                .lineLimit(1)
-                .padding(.horizontal, 16)
-                .frame(minHeight: 46)
-                .background(
-                    isSelected ? Color.accentColor : Color(.secondarySystemBackground),
-                    in: Capsule()
-                )
-                .foregroundStyle(isSelected ? Color.white : Color.primary)
+            HStack(spacing: 6) {
+                if let iconName {
+                    Image(iconName)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 24, height: 24)
+                }
+                Text(label)
+                    .font(.body.weight(isSelected ? .bold : .regular))
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, 16)
+            .frame(minHeight: 46)
+            .background(
+                isSelected ? Color.accentColor : Color(.secondarySystemBackground),
+                in: Capsule()
+            )
+            .foregroundStyle(isSelected ? Color.white : Color.primary)
         }
         .buttonStyle(.plain)
     }
