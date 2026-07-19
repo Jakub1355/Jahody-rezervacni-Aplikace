@@ -48,6 +48,7 @@ enum ProductIcon {
         (["syr"], "ic_syr"),
         (["mlek", "mlik"], "ic_mleko"),
         (["tvaroh"], "ic_tvaroh"),
+        (["brambor"], "ic_brambory"),
     ]
 
     /// Klíčové části názvů (bez diakritiky) → emoji.

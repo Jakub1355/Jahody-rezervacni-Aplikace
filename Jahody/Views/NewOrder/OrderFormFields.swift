@@ -195,21 +195,31 @@ struct OrderFormFields: View {
     // MARK: Čas vyzvednutí
     private var pickupTimeSection: some View {
         Section {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(OrderFormModel.timeSlots, id: \.self) { minutes in
-                        Chip(
-                            label: Self.timeLabel(minutes: minutes),
-                            isSelected: model.pickupMinutes == minutes
-                        ) {
-                            model.pickupMinutes = minutes
+            ScrollViewReader { proxy in
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(OrderFormModel.timeSlots, id: \.self) { minutes in
+                            Chip(
+                                label: Self.timeLabel(minutes: minutes),
+                                isSelected: model.pickupMinutes == minutes
+                            ) {
+                                model.pickupMinutes = minutes
+                            }
+                            .id(minutes)
                         }
-                        .id(minutes)
+                    }
+                    .padding(.vertical, 2)
+                }
+                .onAppear {
+                    // Po zobrazení posunout pruh na aktuálně vybraný čas.
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        proxy.scrollTo(model.pickupMinutes, anchor: .center)
                     }
                 }
-                .padding(.vertical, 2)
+                .onChange(of: model.pickupMinutes) { _, newValue in
+                    withAnimation { proxy.scrollTo(newValue, anchor: .center) }
+                }
             }
-            .scrollPosition(id: .constant(Optional(model.pickupMinutes)), anchor: .center)
         } header: {
             Text("Čas vyzvednutí — \(Self.timeLabel(minutes: model.pickupMinutes))")
         }

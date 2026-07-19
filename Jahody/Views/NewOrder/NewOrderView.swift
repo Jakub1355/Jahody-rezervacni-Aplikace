@@ -100,8 +100,9 @@ struct NewOrderView: View {
             withAnimation { savedBannerVisible = false }
         }
 
-        // …a událost v kalendáři se vytvoří asynchronně, uložení nesmí blokovat.
-        Task { await app.calendarSync.syncPending() }
+        // …a událost v kalendáři se vytvoří asynchronně (rovnou tato objednávka),
+        // uložení tím nikdy neblokuje.
+        Task { await app.calendarSync.syncNow(order) }
     }
 
     private func dismissKeyboard() {

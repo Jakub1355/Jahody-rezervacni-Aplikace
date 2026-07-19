@@ -70,6 +70,15 @@ final class CalendarSyncManager: ObservableObject {
         }
     }
 
+    /// Propíše konkrétní objednávku do kalendáře hned po uložení — nečeká,
+    /// až se objednávka objeví v listeneru Firestore (jinak by první pokus
+    /// neměl co synchronizovat). Při nezdaru naplánuje opakování.
+    func syncNow(_ order: Order) async {
+        guard let calendarId = selectedCalendar?.id else { return }
+        let succeeded = await sync(order, calendarId: calendarId)
+        if !succeeded { scheduleRetry() }
+    }
+
     /// Ruční opakování z detailu objednávky.
     func retry(order: Order) async {
         guard let calendarId = selectedCalendar?.id else { return }

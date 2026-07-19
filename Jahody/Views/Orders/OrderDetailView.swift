@@ -165,19 +165,22 @@ struct OrderDetailView: View {
         }
         errorMessage = nil
         UINotificationFeedbackGenerator().notificationOccurred(.success)
-        Task { await app.calendarSync.syncPending() }
+        Task { await app.calendarSync.syncNow(updated) }
         dismiss()
     }
 
     private func cancelOrder(_ order: Order) {
         guard let email = auth.user?.email else { return }
+        var cancelled = order
+        cancelled.status = .zrusena
         do {
             try orders.cancel(order, editedBy: email)
         } catch {
             errorMessage = "Zrušení se nepovedlo: \(error.localizedDescription)"
             return
         }
-        Task { await app.calendarSync.syncPending() }
+        // Smazání události v kalendáři rovnou pro tuto zrušenou objednávku.
+        Task { await app.calendarSync.syncNow(cancelled) }
         dismiss()
     }
 
