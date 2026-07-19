@@ -86,7 +86,7 @@ struct OrderDetailView: View {
                         } header: {
                             Text("Kontakt")
                         } footer: {
-                            Text("Odešle se zpráva: „\(readyMessage)"  Text upravíte v Nastavení. (Messenger neumí předvyplnit zprávu na číslo — text se zkopíruje a otevře se aplikace, kde ho vložíte.)")
+                            Text("Odešle se zpráva: \(readyMessage)\nText upravíte v Nastavení. (Messenger zprávu na telefonní číslo nepředvyplní, proto se zkopíruje a otevře aplikace, kde ji vložíte.)")
                         }
                     }
 
