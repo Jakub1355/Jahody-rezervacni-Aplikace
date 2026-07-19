@@ -58,18 +58,27 @@ final class ProductStore: ObservableObject {
 
     // MARK: - Správa číselníku
 
-    func add(name: String, unit: ProductUnit) {
+    func add(name: String, unit: ProductUnit, price: Double? = nil) {
         let product = Product(
             name: name,
             unit: unit,
             isActive: true,
-            sortOrder: (products.map(\.sortOrder).max() ?? -1) + 1
+            sortOrder: (products.map(\.sortOrder).max() ?? -1) + 1,
+            price: price
         )
         try? collection.document(product.id).setData(from: product)
     }
 
     func rename(_ product: Product, to newName: String) {
         collection.document(product.id).updateData(["name": newName])
+    }
+
+    func setPrice(_ product: Product, price: Double?) {
+        if let price {
+            collection.document(product.id).updateData(["price": price])
+        } else {
+            collection.document(product.id).updateData(["price": FieldValue.delete()])
+        }
     }
 
     func setActive(_ product: Product, isActive: Bool) {

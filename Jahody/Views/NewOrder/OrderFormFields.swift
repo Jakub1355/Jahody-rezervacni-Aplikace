@@ -23,6 +23,7 @@ struct OrderFormFields: View {
             pickupDaySection
             pickupTimeSection
             noteSection
+            priceSection
         }
         .sheet(isPresented: $showsContactPicker) {
             ContactPicker { name, phone in
@@ -261,6 +262,25 @@ struct OrderFormFields: View {
             TextField("Volný text…", text: $model.note, axis: .vertical)
                 .lineLimit(1...4)
                 .frame(minHeight: 40)
+        }
+    }
+
+    // MARK: Cena
+    @ViewBuilder
+    private var priceSection: some View {
+        let strawberryProduct = products.products.first { Order.isStrawberry(productName: $0.name) }
+        let total = model.total(strawberryProduct: strawberryProduct)
+        if total > 0 {
+            Section {
+                HStack {
+                    Text("Cena objednávky").font(.headline)
+                    Spacer()
+                    Text(CzechFormat.price(total))
+                        .font(.headline)
+                        .foregroundStyle(Color.accentColor)
+                }
+                .frame(minHeight: 40)
+            }
         }
     }
 

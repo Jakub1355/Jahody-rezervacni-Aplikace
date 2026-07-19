@@ -42,6 +42,12 @@ enum CzechFormat {
         quantityFormatter.string(from: NSNumber(value: value)) ?? "\(value)"
     }
 
+    /// Cena v korunách: 125 → „125 Kč“, 12.5 → „12,50 Kč“.
+    static func price(_ value: Double) -> String {
+        let text = quantityFormatter.string(from: NSNumber(value: value)) ?? "\(value)"
+        return "\(text) Kč"
+    }
+
     /// Parsování množství z české klávesnice — akceptuje čárku i tečku („0,5“ i „0.5“).
     static func parseQuantity(_ text: String) -> Double? {
         let trimmed = text.trimmingCharacters(in: .whitespaces)

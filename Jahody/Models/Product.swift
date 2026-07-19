@@ -16,10 +16,12 @@ struct Product: Identifiable, Codable, Equatable, Hashable {
     var unit: ProductUnit
     var isActive: Bool = true
     var sortOrder: Int = 0
+    /// Cena za jednotku (Kč). Nepovinné — u starších produktů může chybět.
+    var price: Double?
 
     // `id` je ID dokumentu ve Firestore, do dat se neukládá.
     enum CodingKeys: String, CodingKey {
-        case name, unit, isActive, sortOrder
+        case name, unit, isActive, sortOrder, price
     }
 }
 

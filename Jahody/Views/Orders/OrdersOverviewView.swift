@@ -3,7 +3,9 @@ import SwiftUI
 /// Přehled objednávek po dnech (Dnes / Zítra / další dny) se součty kg jahod
 /// v hlavičce každého dne — podle toho se plánuje sběr.
 struct OrdersOverviewView: View {
+    @EnvironmentObject private var app: AppModel
     @EnvironmentObject private var orders: OrderStore
+    @State private var orderToDelete: Order?
 
     var body: some View {
         NavigationStack {
@@ -23,6 +25,13 @@ struct OrdersOverviewView: View {
                                     NavigationLink(value: order.id) {
                                         OrderRowView(order: order)
                                     }
+                                    .swipeActions(edge: .trailing) {
+                                        Button(role: .destructive) {
+                                            orderToDelete = order
+                                        } label: {
+                                            Label("Smazat", systemImage: "trash")
+                                        }
+                                    }
                                 }
                             } header: {
                                 DayHeaderView(group: group)
@@ -36,6 +45,24 @@ struct OrdersOverviewView: View {
             .navigationDestination(for: String.self) { orderId in
                 OrderDetailView(orderId: orderId)
             }
+            .confirmationDialog(
+                "Smazat objednávku?",
+                isPresented: Binding(
+                    get: { orderToDelete != nil },
+                    set: { if !$0 { orderToDelete = nil } }
+                ),
+                titleVisibility: .visible
+            ) {
+                Button("Smazat", role: .destructive) {
+                    if let order = orderToDelete { deleteOrder(order) }
+                    orderToDelete = nil
+                }
+                Button("Zpět", role: .cancel) { orderToDelete = nil }
+            } message: {
+                if let order = orderToDelete {
+                    Text("Objednávka \(order.customerName) se úplně smaže a odstraní se i z kalendáře.")
+                }
+            }
             .toolbar {
                 NavigationLink {
                     HistoryView()
@@ -44,6 +71,12 @@ struct OrdersOverviewView: View {
                 }
             }
         }
+    }
+
+    private func deleteOrder(_ order: Order) {
+        // Nejdřív smazat událost v kalendáři, pak objednávku z Firestore.
+        Task { await app.calendarSync.deleteEvent(for: order) }
+        orders.delete(order)
     }
 }
 
@@ -116,6 +149,12 @@ struct OrderRowView: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
+
+                if order.hasPrice {
+                    Text(CzechFormat.price(order.totalPrice))
+                        .font(.footnote.bold())
+                        .foregroundStyle(Color.accentColor)
+                }
             }
 
             Spacer()

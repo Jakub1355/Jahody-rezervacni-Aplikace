@@ -79,6 +79,13 @@ final class CalendarSyncManager: ObservableObject {
         if !succeeded { scheduleRetry() }
     }
 
+    /// Smaže událost v kalendáři pro (mazanou) objednávku.
+    func deleteEvent(for order: Order) async {
+        guard let calendarId = selectedCalendar?.id,
+              let eventId = order.calendarEventId else { return }
+        try? await service.deleteEvent(eventId: eventId, calendarId: calendarId)
+    }
+
     /// Ruční opakování z detailu objednávky.
     func retry(order: Order) async {
         guard let calendarId = selectedCalendar?.id else { return }

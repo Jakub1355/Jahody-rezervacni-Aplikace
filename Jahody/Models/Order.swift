@@ -31,10 +31,19 @@ struct OrderItem: Identifiable, Codable, Equatable, Hashable {
     var productName: String
     var quantity: Double
     var unit: String
+    /// Cena za jednotku v době objednání (Kč). Nepovinné.
+    var unitPrice: Double?
 
     // `id` je jen lokální (pro SwiftUI seznamy), do Firestore se neukládá.
     enum CodingKeys: String, CodingKey {
-        case productName, quantity, unit
+        case productName, quantity, unit, unitPrice
+    }
+}
+
+extension OrderItem {
+    /// Cena za tuto položku (množství × jednotková cena), pokud je cena známá.
+    var lineTotal: Double {
+        quantity * (unitPrice ?? 0)
     }
 }
 
@@ -68,6 +77,16 @@ struct Order: Identifiable, Codable, Equatable {
 }
 
 extension Order {
+    /// Celková cena objednávky (Kč), pokud je u položek známá cena.
+    var totalPrice: Double {
+        items.reduce(0) { $0 + $1.lineTotal }
+    }
+
+    /// Má objednávka aspoň u jedné položky cenu?
+    var hasPrice: Bool {
+        items.contains { ($0.unitPrice ?? 0) > 0 }
+    }
+
     /// Celkové kg jahod v objednávce (položky „Jahody“ v kg).
     var strawberryKg: Double {
         items

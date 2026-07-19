@@ -1,6 +1,7 @@
 import SwiftUI
+import UIKit
 
-/// Správa číselníku produktů: přidat, přejmenovat, skrýt, seřadit.
+/// Správa číselníku produktů: přidat, přejmenovat, cena, skrýt, seřadit.
 struct ProductsSettingsView: View {
     @EnvironmentObject private var products: ProductStore
 
@@ -12,34 +13,16 @@ struct ProductsSettingsView: View {
         List {
             Section {
                 ForEach(products.products) { product in
-                    HStack {
-                        VStack(alignment: .leading) {
-                            Text(product.name)
-                                .foregroundStyle(product.isActive ? .primary : .secondary)
-                            Text(product.unit.label)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        Toggle("", isOn: Binding(
-                            get: { product.isActive },
-                            set: { products.setActive(product, isActive: $0) }
-                        ))
-                        .labelsHidden()
-                    }
-                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                        Button("Přejmenovat") {
-                            renamedProduct = product
-                            renameText = product.name
-                        }
-                        .tint(.blue)
+                    ProductRow(product: product) {
+                        renamedProduct = product
+                        renameText = product.name
                     }
                 }
                 .onMove { source, destination in
                     products.move(fromOffsets: source, toOffset: destination)
                 }
             } footer: {
-                Text("Vypnuté produkty se nenabízejí při zadávání objednávky, ale ve starých objednávkách zůstávají.")
+                Text("Cena je za jednotku (kg / ks / l). Podle ní se počítá cena objednávky. Vypnuté produkty se nenabízejí při zadávání, ale ve starých objednávkách zůstávají.")
             }
         }
         .navigationTitle("Produkty")
@@ -53,6 +36,14 @@ struct ProductsSettingsView: View {
             }
             ToolbarItem(placement: .topBarTrailing) {
                 EditButton()
+            }
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Hotovo") {
+                    UIApplication.shared.sendAction(
+                        #selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil
+                    )
+                }
             }
         }
         .alert("Přejmenovat produkt", isPresented: Binding(
@@ -78,12 +69,71 @@ struct ProductsSettingsView: View {
     }
 }
 
+/// Řádek produktu s editovatelnou cenou.
+private struct ProductRow: View {
+    let product: Product
+    let onRename: () -> Void
+
+    @EnvironmentObject private var products: ProductStore
+    @State private var priceText: String
+    @FocusState private var priceFocused: Bool
+
+    init(product: Product, onRename: @escaping () -> Void) {
+        self.product = product
+        self.onRename = onRename
+        _priceText = State(initialValue: product.price.map { CzechFormat.quantity($0) } ?? "")
+    }
+
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(product.name)
+                    .foregroundStyle(product.isActive ? .primary : .secondary)
+                Text("za \(product.unit.label)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            TextField("cena", text: $priceText)
+                .keyboardType(.decimalPad)
+                .multilineTextAlignment(.trailing)
+                .frame(width: 62)
+                .focused($priceFocused)
+                .onChange(of: priceFocused) { _, focused in
+                    if !focused { commitPrice() }
+                }
+            Text("Kč")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+            Toggle("", isOn: Binding(
+                get: { product.isActive },
+                set: { products.setActive(product, isActive: $0) }
+            ))
+            .labelsHidden()
+        }
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            Button("Přejmenovat") { onRename() }
+                .tint(.blue)
+        }
+    }
+
+    private func commitPrice() {
+        let trimmed = priceText.trimmingCharacters(in: .whitespaces)
+        if trimmed.isEmpty {
+            products.setPrice(product, price: nil)
+        } else if let value = CzechFormat.parseQuantity(trimmed) {
+            products.setPrice(product, price: value)
+        }
+    }
+}
+
 private struct AddProductSheet: View {
     @EnvironmentObject private var products: ProductStore
     @Environment(\.dismiss) private var dismiss
 
     @State private var name = ""
     @State private var unit: ProductUnit = .ks
+    @State private var priceText = ""
 
     var body: some View {
         NavigationStack {
@@ -95,13 +145,19 @@ private struct AddProductSheet: View {
                     }
                 }
                 .pickerStyle(.segmented)
+                TextField("Cena za jednotku (Kč, nepovinné)", text: $priceText)
+                    .keyboardType(.decimalPad)
             }
             .navigationTitle("Nový produkt")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Přidat") {
-                        products.add(name: name.trimmingCharacters(in: .whitespaces), unit: unit)
+                        products.add(
+                            name: name.trimmingCharacters(in: .whitespaces),
+                            unit: unit,
+                            price: CzechFormat.parseQuantity(priceText)
+                        )
                         dismiss()
                     }
                     .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)

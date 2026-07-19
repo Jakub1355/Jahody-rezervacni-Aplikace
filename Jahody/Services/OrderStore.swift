@@ -95,6 +95,11 @@ final class OrderStore: ObservableObject {
         try update(cancelled, editedBy: email)
     }
 
+    /// Úplně smaže objednávku z Firestore (událost v kalendáři smaže volající).
+    func delete(_ order: Order) {
+        ordersCollection.document(order.id).delete()
+    }
+
     /// Zapíše výsledek synchronizace s kalendářem (nemění updatedAt).
     func markCalendarSync(orderId: String, eventId: String?, status: CalendarSyncStatus) {
         // Když událost už neexistuje (zrušená objednávka), pole se z dokumentu odstraní.

@@ -60,11 +60,17 @@ final class OrderFormModel: ObservableObject {
             items.append(OrderItem(
                 productName: strawberryProduct?.name ?? "Jahody",
                 quantity: strawberryKg,
-                unit: ProductUnit.kg.rawValue
+                unit: ProductUnit.kg.rawValue,
+                unitPrice: strawberryProduct?.price
             ))
         }
         items.append(contentsOf: extraItems)
         return items
+    }
+
+    /// Celková cena rozpracované objednávky (Kč) — 0, pokud ceny nejsou nastavené.
+    func total(strawberryProduct: Product?) -> Double {
+        items(strawberryProduct: strawberryProduct).reduce(0) { $0 + $1.lineTotal }
     }
 
     func addExtraItem(product: Product) {
@@ -72,7 +78,12 @@ final class OrderFormModel: ObservableObject {
         if let index = extraItems.firstIndex(where: { $0.productName == product.name }) {
             extraItems[index].quantity += step
         } else {
-            extraItems.append(OrderItem(productName: product.name, quantity: step, unit: product.unit.rawValue))
+            extraItems.append(OrderItem(
+                productName: product.name,
+                quantity: step,
+                unit: product.unit.rawValue,
+                unitPrice: product.price
+            ))
         }
     }
 
