@@ -40,7 +40,7 @@ final class GoogleCalendarService: CalendarService {
     /// Dodá čerstvý OAuth access token (AuthService.freshAccessToken).
     private let tokenProvider: () async throws -> String
     private let session: URLSession
-    private static let baseURL = URL(string: "https://www.googleapis.com/calendar/v3")!
+    private static let baseURL = "https://www.googleapis.com/calendar/v3"
     private static let timeZoneID = "Europe/Prague"
 
     init(tokenProvider: @escaping () async throws -> String, session: URLSession = .shared) {
@@ -136,10 +136,10 @@ final class GoogleCalendarService: CalendarService {
         method: String,
         body: [String: Any]?
     ) async throws -> Data {
-        var components = URLComponents(
-            url: Self.baseURL.appendingPathComponent(path),
-            resolvingAgainstBaseURL: false
-        )!
+        // Pozor: `path` už obsahuje procentově zakódované ID kalendáře (znak @ apod.).
+        // Proto NEpoužíváme appendingPathComponent (ten by ho zakódoval podruhé) a
+        // sestavíme URL z řetězce, který si kódování zachová.
+        var components = URLComponents(string: Self.baseURL + "/" + path)!
         if !query.isEmpty { components.queryItems = query }
 
         var request = URLRequest(url: components.url!)

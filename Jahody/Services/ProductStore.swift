@@ -51,7 +51,7 @@ final class ProductStore: ObservableObject {
         let batch = Firestore.firestore().batch()
         for product in Product.defaults {
             let ref = collection.document(product.id)
-            try? batch.setData(from: product, forDocument: ref)
+            _ = try? batch.setData(from: product, forDocument: ref)
         }
         batch.commit()
     }
