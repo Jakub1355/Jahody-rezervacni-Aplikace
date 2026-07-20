@@ -154,7 +154,7 @@ struct OrderFormFields: View {
                         Chip(
                             label: product.name,
                             iconName: ProductIcon.assetName(for: product.name),
-                            isSelected: model.extraItems.contains { $0.productName == product.name }
+                            isSelected: model.extraItems.contains(where: { $0.productName == product.name })
                         ) {
                             model.addExtraItem(product: product)
                         }

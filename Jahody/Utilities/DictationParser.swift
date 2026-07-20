@@ -281,13 +281,13 @@ enum DictationParser {
                 let j = i + offset
                 guard j >= 0, j < folded.count, !used.contains(j), folded[j].count >= 3 else { continue }
                 if let match = candidates.first(where: { matchesProduct(folded[j], $0) }),
-                   !usedProductNames.contains(match.product.name) {
+                   !usedProductNames.contains(match.name) {
                     items.append(OrderItem(
-                        productName: match.product.name,
+                        productName: match.name,
                         quantity: quantity,
-                        unit: match.product.unit.rawValue
+                        unit: match.unit.rawValue
                     ))
-                    usedProductNames.insert(match.product.name)
+                    usedProductNames.insert(match.name)
                     used.insert(i); used.insert(j)
                     break
                 }
