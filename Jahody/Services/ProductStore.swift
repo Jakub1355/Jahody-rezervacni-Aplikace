@@ -58,7 +58,8 @@ final class ProductStore: ObservableObject {
 
     // MARK: - Správa číselníku
 
-    func add(name: String, unit: ProductUnit, price: Double? = nil) {
+    @discardableResult
+    func add(name: String, unit: ProductUnit, price: Double? = nil) -> Product {
         let product = Product(
             name: name,
             unit: unit,
@@ -67,6 +68,7 @@ final class ProductStore: ObservableObject {
             price: price
         )
         try? collection.document(product.id).setData(from: product)
+        return product
     }
 
     func rename(_ product: Product, to newName: String) {

@@ -37,15 +37,17 @@ struct RootView: View {
 /// Zámková obrazovka — překryje appku, dokud se uživatel neověří Face ID / kódem.
 private struct LockScreenView: View {
     @EnvironmentObject private var biometricLock: BiometricLock
+    @AppStorage(AppSettingsKeys.appIconChoice) private var iconChoice = 0
 
     var body: some View {
         ZStack {
             Color(.systemBackground).ignoresSafeArea()
             VStack(spacing: 20) {
-                Image("StrawberryLogo")
+                Image((AppIconOption(rawValue: iconChoice) ?? .realistic).loginAsset)
                     .resizable()
                     .scaledToFit()
                     .frame(width: 84, height: 84)
+                    .clipShape(RoundedRectangle(cornerRadius: 18))
                 Text("Jahody").font(.title2.bold())
                 Image(systemName: "faceid")
                     .font(.system(size: 40))

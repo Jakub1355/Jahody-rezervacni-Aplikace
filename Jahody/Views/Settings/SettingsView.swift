@@ -8,6 +8,7 @@ struct SettingsView: View {
     @EnvironmentObject private var biometricLock: BiometricLock
     @AppStorage(AppSettingsKeys.readyMessage) private var readyMessage = AppSettingsKeys.defaultReadyMessage
     @AppStorage(AppSettingsKeys.faceIDLock) private var faceIDLock = false
+    @AppStorage(AppSettingsKeys.appIconChoice) private var iconChoice = 0
 
     var body: some View {
         NavigationStack {
@@ -56,6 +57,34 @@ struct SettingsView: View {
                     Text("Zpráva zákazníkovi")
                 } footer: {
                     Text("Přednastavený text pro SMS / WhatsApp / Messenger, když dáváte vědět, že je objednávka připravená. Použije se z detailu objednávky.")
+                }
+
+                Section {
+                    ForEach(AppIconOption.allCases) { option in
+                        Button {
+                            iconChoice = option.rawValue
+                            AppIconManager.apply(option)
+                        } label: {
+                            HStack(spacing: 12) {
+                                Image(option.loginAsset)
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 44, height: 44)
+                                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                                Text(option.label)
+                                    .foregroundStyle(.primary)
+                                Spacer()
+                                if iconChoice == option.rawValue {
+                                    Image(systemName: "checkmark")
+                                        .foregroundStyle(Color.accentColor)
+                                }
+                            }
+                        }
+                    }
+                } header: {
+                    Text("Ikona aplikace")
+                } footer: {
+                    Text("Změní ikonu na ploše i jahodu na přihlašovací obrazovce. Při změně ikony na ploše ukáže iOS potvrzovací okno.")
                 }
 
                 Section {

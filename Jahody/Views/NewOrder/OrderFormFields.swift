@@ -12,6 +12,7 @@ struct OrderFormFields: View {
     @StateObject private var contacts = ContactsService()
     @State private var showsOtherDatePicker = false
     @State private var showsContactPicker = false
+    @State private var showsNewProduct = false
     @State private var contactSuggestions: [CustomerSuggestion] = []
     @FocusState private var nameFocused: Bool
 
@@ -32,6 +33,14 @@ struct OrderFormFields: View {
                 showsContactPicker = false
             }
             .ignoresSafeArea()
+        }
+        .sheet(isPresented: $showsNewProduct) {
+            NewProductSheet { name, unit, price in
+                // Uloží nový produkt do číselníku a rovnou ho přidá do objednávky.
+                let product = products.add(name: name, unit: unit, price: price)
+                model.addExtraItem(product: product)
+            }
+            .presentationDetents([.medium])
         }
     }
 
@@ -149,6 +158,9 @@ struct OrderFormFields: View {
                         ) {
                             model.addExtraItem(product: product)
                         }
+                    }
+                    Chip(label: "＋ Nový produkt", isSelected: false) {
+                        showsNewProduct = true
                     }
                 }
             }
@@ -292,5 +304,48 @@ struct OrderFormFields: View {
 
     private static func timeLabel(minutes: Int) -> String {
         String(format: "%d:%02d", minutes / 60, minutes % 60)
+    }
+}
+
+/// Okno pro rychlé přidání nového produktu přímo z objednávky.
+private struct NewProductSheet: View {
+    /// (název, jednotka, cena?) potvrzeného produktu.
+    let onCreate: (String, ProductUnit, Double?) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var name = ""
+    @State private var unit: ProductUnit = .ks
+    @State private var priceText = ""
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                TextField("Název produktu", text: $name)
+                Picker("Jednotka", selection: $unit) {
+                    ForEach(ProductUnit.allCases) { unit in
+                        Text(unit.label).tag(unit)
+                    }
+                }
+                .pickerStyle(.segmented)
+                TextField("Cena za jednotku (Kč, nepovinné)", text: $priceText)
+                    .keyboardType(.decimalPad)
+            } footer: {
+                Text("Produkt se přidá do této objednávky i do číselníku, takže ho příště najdete mezi dalšími produkty.")
+            }
+            .navigationTitle("Nový produkt")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Přidat") {
+                        onCreate(name.trimmingCharacters(in: .whitespaces), unit, CzechFormat.parseQuantity(priceText))
+                        dismiss()
+                    }
+                    .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Zrušit") { dismiss() }
+                }
+            }
+        }
     }
 }
