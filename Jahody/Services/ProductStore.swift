@@ -87,6 +87,12 @@ final class ProductStore: ObservableObject {
         collection.document(product.id).updateData(["isActive": isActive])
     }
 
+    /// Trvale smaže produkt z číselníku. Staré objednávky mají položky uložené
+    /// samostatně (název, množství, cena), takže se jich smazání nedotkne.
+    func delete(_ product: Product) {
+        collection.document(product.id).delete()
+    }
+
     func move(fromOffsets source: IndexSet, toOffset destination: Int) {
         var reordered = products
         reordered.move(fromOffsets: source, toOffset: destination)

@@ -8,15 +8,22 @@ struct ProductsSettingsView: View {
     @State private var renamedProduct: Product?
     @State private var renameText = ""
     @State private var showsAddSheet = false
+    @State private var productPendingDeletion: Product?
 
     var body: some View {
         List {
             Section {
                 ForEach(products.products) { product in
-                    ProductRow(product: product) {
-                        renamedProduct = product
-                        renameText = product.name
-                    }
+                    ProductRow(
+                        product: product,
+                        onRename: {
+                            renamedProduct = product
+                            renameText = product.name
+                        },
+                        onDelete: {
+                            productPendingDeletion = product
+                        }
+                    )
                 }
                 .onMove { source, destination in
                     products.move(fromOffsets: source, toOffset: destination)
@@ -62,6 +69,25 @@ struct ProductsSettingsView: View {
                 renamedProduct = nil
             }
         }
+        .confirmationDialog(
+            "Smazat produkt?",
+            isPresented: Binding(
+                get: { productPendingDeletion != nil },
+                set: { if !$0 { productPendingDeletion = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: productPendingDeletion
+        ) { product in
+            Button("Smazat \(product.name)", role: .destructive) {
+                products.delete(product)
+                productPendingDeletion = nil
+            }
+            Button("Zrušit", role: .cancel) {
+                productPendingDeletion = nil
+            }
+        } message: { product in
+            Text("Produkt „\(product.name)“ se trvale odebere z číselníku. Staré objednávky zůstanou nedotčené.")
+        }
         .sheet(isPresented: $showsAddSheet) {
             AddProductSheet()
                 .presentationDetents([.medium])
@@ -73,14 +99,16 @@ struct ProductsSettingsView: View {
 private struct ProductRow: View {
     let product: Product
     let onRename: () -> Void
+    let onDelete: () -> Void
 
     @EnvironmentObject private var products: ProductStore
     @State private var priceText: String
     @FocusState private var priceFocused: Bool
 
-    init(product: Product, onRename: @escaping () -> Void) {
+    init(product: Product, onRename: @escaping () -> Void, onDelete: @escaping () -> Void) {
         self.product = product
         self.onRename = onRename
+        self.onDelete = onDelete
         _priceText = State(initialValue: product.price.map { CzechFormat.quantity($0) } ?? "")
     }
 
@@ -112,6 +140,7 @@ private struct ProductRow: View {
             .labelsHidden()
         }
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            Button("Smazat", role: .destructive) { onDelete() }
             Button("Přejmenovat") { onRename() }
                 .tint(.blue)
         }
