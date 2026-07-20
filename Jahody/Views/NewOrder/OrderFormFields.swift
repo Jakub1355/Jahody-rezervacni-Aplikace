@@ -320,17 +320,19 @@ private struct NewProductSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                TextField("Název produktu", text: $name)
-                Picker("Jednotka", selection: $unit) {
-                    ForEach(ProductUnit.allCases) { unit in
-                        Text(unit.label).tag(unit)
+                Section {
+                    TextField("Název produktu", text: $name)
+                    Picker("Jednotka", selection: $unit) {
+                        ForEach(ProductUnit.allCases) { unit in
+                            Text(unit.label).tag(unit)
+                        }
                     }
+                    .pickerStyle(.segmented)
+                    TextField("Cena za jednotku (Kč, nepovinné)", text: $priceText)
+                        .keyboardType(.decimalPad)
+                } footer: {
+                    Text("Produkt se přidá do této objednávky i do číselníku, takže ho příště najdete mezi dalšími produkty.")
                 }
-                .pickerStyle(.segmented)
-                TextField("Cena za jednotku (Kč, nepovinné)", text: $priceText)
-                    .keyboardType(.decimalPad)
-            } footer: {
-                Text("Produkt se přidá do této objednávky i do číselníku, takže ho příště najdete mezi dalšími produkty.")
             }
             .navigationTitle("Nový produkt")
             .navigationBarTitleDisplayMode(.inline)
