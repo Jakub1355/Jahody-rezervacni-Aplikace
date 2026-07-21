@@ -2,8 +2,8 @@ import SwiftUI
 import UIKit
 
 /// Nadiktování objednávky. Diktovat lze **po částech a v jakémkoliv pořadí** —
-/// hodnoty se sčítají (jméno, telefon, produkty, den, čas). Tlačítko „Začít
-/// znovu“ vše vymaže. Vše jde pak ještě ručně upravit ve formuláři.
+/// rozpoznané hodnoty se doplní do editovatelných polí níže. Každou hodnotu lze
+/// ještě **ručně opravit** (např. překlep ve jméně) a teprve pak poslat do formuláře.
 struct DictationSheet: View {
     @ObservedObject var model: OrderFormModel
     /// Aktivní produkty pro rozpoznání dalších položek.
@@ -11,38 +11,39 @@ struct DictationSheet: View {
 
     @StateObject private var speech = SpeechDictationService()
     @Environment(\.dismiss) private var dismiss
-    /// Dosud nadiktovaný a **ručně upravitelný** text (probíhající nahrávka je ve `speech.transcript`).
-    @State private var editableTranscript = ""
-    @FocusState private var transcriptFocused: Bool
 
-    /// Celý text (upravený/nadiktovaný + probíhající nahrávka).
-    private var combinedTranscript: String {
-        (editableTranscript + " " + speech.transcript).trimmingCharacters(in: .whitespaces)
-    }
+    // Editovatelná rozpoznaná pole (naplní se z formuláře a doplňují diktováním).
+    @State private var name = ""
+    @State private var phone = ""
+    @State private var strawberryText = ""
+    @State private var pickupDay = Calendar.current.startOfDay(for: Date())
+    @State private var pickupMinutes = OrderFormModel.defaultPickupMinutes()
+    @State private var extraItems: [OrderItem] = []
+    @State private var note = ""
+    @State private var didSeed = false
 
-    private var preview: DictationResult? {
-        combinedTranscript.isEmpty ? nil : DictationParser.parse(combinedTranscript, products: products)
+    private enum Field: Hashable { case name, phone, strawberry, note }
+    @FocusState private var focusedField: Field?
+
+    private var hasAnyValue: Bool {
+        !name.trimmingCharacters(in: .whitespaces).isEmpty
+            || !phone.trimmingCharacters(in: .whitespaces).isEmpty
+            || !strawberryText.trimmingCharacters(in: .whitespaces).isEmpty
+            || !extraItems.isEmpty
+            || !note.trimmingCharacters(in: .whitespaces).isEmpty
     }
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 20) {
+            Group {
                 if !speech.isAvailable {
                     unavailableView
                 } else if speech.permissionDenied {
                     permissionDeniedView
                 } else {
-                    instructions
-                    micButton
-                    transcriptView
-                    if let preview {
-                        previewView(preview)
-                    }
-                    Spacer()
-                    actionButtons
+                    mainForm
                 }
             }
-            .padding(20)
             .navigationTitle("Nadiktovat objednávku")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -54,55 +55,173 @@ struct DictationSheet: View {
                 }
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
-                    Button("Hotovo") { transcriptFocused = false }
+                    Button("Hotovo") { focusedField = nil }
                 }
             }
             .onChange(of: speech.isRecording) { wasRecording, isRecording in
-                // Po dokončení nahrávky text „uložíme“ do upravitelného pole a připravíme se na další.
+                // Po dokončení nahrávky rozpoznáme právě nadiktovaný úsek a doplníme pole.
                 if wasRecording && !isRecording {
-                    let text = speech.transcript.trimmingCharacters(in: .whitespaces)
-                    if !text.isEmpty {
-                        editableTranscript = combinedTranscript
+                    let snippet = speech.transcript.trimmingCharacters(in: .whitespaces)
+                    if !snippet.isEmpty {
+                        merge(DictationParser.parse(snippet, products: products))
                     }
                     speech.reset()
                 }
             }
+            .onAppear {
+                guard !didSeed else { return }
+                didSeed = true
+                name = model.customerName
+                phone = model.phone
+                strawberryText = model.strawberryText
+                pickupDay = model.pickupDay
+                pickupMinutes = model.pickupMinutes
+                extraItems = model.extraItems
+                note = model.note
+            }
         }
     }
 
-    // MARK: Části
+    // MARK: Hlavní formulář
 
-    private var instructions: some View {
-        VStack(spacing: 6) {
-            Text("Diktujte klidně po částech, v jakémkoliv pořadí — hodnoty se sčítají.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-            Text("Např. „Jana Nováková, 777 123 456“ — pak znovu „tři kila jahod a deset vajec“ — pak „zítra ve tři“.")
-                .font(.callout)
-                .italic()
-                .multilineTextAlignment(.center)
-                .foregroundStyle(.secondary)
+    private var mainForm: some View {
+        Form {
+            Section {
+                VStack(spacing: 12) {
+                    micButton
+                    micStatus
+                }
+                .frame(maxWidth: .infinity)
+                .listRowBackground(Color.clear)
+            } footer: {
+                Text("Diktujte klidně po částech, v jakémkoliv pořadí (např. „Jana Nováková 777 123 456“, pak „tři kila jahod“, pak „zítra ve tři“). Rozpoznané údaje se doplní níže a můžete je upravit.")
+            }
+
+            recognizedSection
+
+            Section {
+                Button {
+                    applyAndDismiss()
+                } label: {
+                    Text("Použít do formuláře")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(speech.isRecording)
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+
+                if hasAnyValue {
+                    Button("Vymazat vše", role: .destructive) {
+                        clearAll()
+                    }
+                    .frame(maxWidth: .infinity)
+                    .listRowBackground(Color.clear)
+                }
+            }
         }
     }
+
+    // MARK: Editovatelná rozpoznaná pole
+
+    private var recognizedSection: some View {
+        Section("Rozpoznáno — upravte podle potřeby") {
+            HStack {
+                Text("Jméno").foregroundStyle(.secondary)
+                TextField("jméno zákazníka", text: $name)
+                    .multilineTextAlignment(.trailing)
+                    .textContentType(.name)
+                    .focused($focusedField, equals: .name)
+            }
+
+            HStack {
+                Text("Telefon").foregroundStyle(.secondary)
+                TextField("telefon", text: $phone)
+                    .keyboardType(.phonePad)
+                    .textContentType(.telephoneNumber)
+                    .multilineTextAlignment(.trailing)
+                    .focused($focusedField, equals: .phone)
+            }
+
+            HStack {
+                Text("Jahody").foregroundStyle(.secondary)
+                Spacer()
+                TextField("0", text: $strawberryText)
+                    .keyboardType(.decimalPad)
+                    .multilineTextAlignment(.trailing)
+                    .focused($focusedField, equals: .strawberry)
+                    .frame(width: 90)
+                Text("kg").foregroundStyle(.secondary)
+            }
+
+            ForEach(extraItems) { item in
+                HStack {
+                    Image(ProductIcon.assetName(for: item.productName))
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 24, height: 24)
+                    Text(item.productName)
+                    Spacer()
+                    Button {
+                        changeQuantity(of: item, steps: -1)
+                    } label: {
+                        Image(systemName: "minus.circle.fill")
+                            .font(.title3)
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    Text("\(CzechFormat.quantity(item.quantity)) \(item.unit)")
+                        .font(.body.monospacedDigit())
+                        .frame(minWidth: 56)
+                    Button {
+                        changeQuantity(of: item, steps: 1)
+                    } label: {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.title3)
+                            .foregroundStyle(Color.accentColor)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .onDelete { extraItems.remove(atOffsets: $0) }
+
+            DatePicker("Den", selection: $pickupDay, displayedComponents: .date)
+                .environment(\.locale, CzechFormat.locale)
+
+            DatePicker("Čas", selection: timeBinding, displayedComponents: .hourAndMinute)
+                .environment(\.locale, CzechFormat.locale)
+
+            HStack(alignment: .top) {
+                Text("Poznámka").foregroundStyle(.secondary)
+                TextField("poznámka", text: $note, axis: .vertical)
+                    .multilineTextAlignment(.trailing)
+                    .lineLimit(1...4)
+                    .focused($focusedField, equals: .note)
+            }
+        }
+    }
+
+    // MARK: Mikrofon
 
     private var micButton: some View {
         Button {
+            focusedField = nil
             speech.toggle()
         } label: {
             ZStack {
                 Circle()
                     .fill(speech.isRecording ? Color.red : Color.accentColor)
-                    .frame(width: 120, height: 120)
+                    .frame(width: 96, height: 96)
                 Image(systemName: speech.isRecording ? "stop.fill" : "mic.fill")
-                    .font(.system(size: 48))
+                    .font(.system(size: 40))
                     .foregroundStyle(.white)
             }
             .overlay {
                 if speech.isRecording {
                     Circle()
                         .stroke(Color.red.opacity(0.4), lineWidth: 8)
-                        .frame(width: 140, height: 140)
+                        .frame(width: 116, height: 116)
                         .scaleEffect(speech.isRecording ? 1.1 : 1.0)
                         .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: speech.isRecording)
                 }
@@ -112,97 +231,29 @@ struct DictationSheet: View {
         .accessibilityLabel(speech.isRecording ? "Zastavit diktování" : "Přidat diktováním")
     }
 
-    private var transcriptView: some View {
+    private var micStatus: some View {
         Group {
             if speech.isRecording {
-                Text("Poslouchám…")
-                    .font(.headline)
-                    .foregroundStyle(.red)
-                if !combinedTranscript.isEmpty {
-                    Text(combinedTranscript)
-                        .font(.body)
-                        .multilineTextAlignment(.center)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
+                VStack(spacing: 6) {
+                    Text("Poslouchám…")
+                        .font(.headline)
+                        .foregroundStyle(.red)
+                    if !speech.transcript.isEmpty {
+                        Text(speech.transcript)
+                            .font(.callout)
+                            .multilineTextAlignment(.center)
+                            .foregroundStyle(.secondary)
+                    }
                 }
-            } else if editableTranscript.isEmpty {
-                Text("Klepněte na mikrofon a mluvte")
-                    .font(.headline)
-                    .foregroundStyle(.secondary)
             } else {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Rozpoznaný text — před použitím můžete opravit případné překlepy")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    TextField("Text objednávky", text: $editableTranscript, axis: .vertical)
-                        .font(.body)
-                        .lineLimit(2...8)
-                        .focused($transcriptFocused)
-                        .padding()
-                        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
-                }
+                Text("Klepněte na mikrofon a diktujte")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
             }
             if let error = speech.errorMessage {
                 Text(error)
                     .font(.footnote)
                     .foregroundStyle(.red)
-            }
-        }
-    }
-
-    private func previewView(_ result: DictationResult) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Rozpoznáno")
-                .font(.subheadline.bold())
-                .foregroundStyle(.secondary)
-            previewRow("Jméno", result.customerName)
-            previewRow("Telefon", result.phone)
-            previewRow("Jahody", result.strawberryKg.map { "\(CzechFormat.quantity($0)) kg" })
-            previewRow("Den", result.pickupDay.map { CzechFormat.relativeDayLabel(for: $0) })
-            previewRow("Čas", result.pickupMinutes.map { String(format: "%d:%02d", $0 / 60, $0 % 60) })
-            if !result.extraItems.isEmpty {
-                previewRow("Další", CzechFormat.itemsSummary(result.extraItems))
-            }
-            previewRow("Poznámka", result.note)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding()
-        .background(Color(.tertiarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
-    }
-
-    @ViewBuilder
-    private func previewRow(_ label: String, _ value: String?) -> some View {
-        if let value, !value.isEmpty {
-            HStack(alignment: .top) {
-                Text(label)
-                    .foregroundStyle(.secondary)
-                    .frame(width: 80, alignment: .leading)
-                Text(value).fontWeight(.medium)
-                Spacer()
-            }
-            .font(.callout)
-        }
-    }
-
-    private var actionButtons: some View {
-        VStack(spacing: 12) {
-            Button {
-                applyAndDismiss()
-            } label: {
-                Text("Použít do formuláře")
-                    .font(.headline)
-                    .frame(maxWidth: .infinity, minHeight: 52)
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(preview == nil || speech.isRecording)
-
-            if !combinedTranscript.isEmpty, !speech.isRecording {
-                Button("Začít znovu", role: .destructive) {
-                    editableTranscript = ""
-                    transcriptFocused = false
-                    speech.reset()
-                }
             }
         }
     }
@@ -230,13 +281,77 @@ struct DictationSheet: View {
         }
     }
 
+    // MARK: Čas (převod minut ↔ Date pro DatePicker)
+
+    private var timeBinding: Binding<Date> {
+        Binding(
+            get: {
+                Calendar.current.date(
+                    bySettingHour: pickupMinutes / 60,
+                    minute: pickupMinutes % 60,
+                    second: 0,
+                    of: pickupDay
+                ) ?? pickupDay
+            },
+            set: { newDate in
+                let comps = Calendar.current.dateComponents([.hour, .minute], from: newDate)
+                pickupMinutes = (comps.hour ?? 0) * 60 + (comps.minute ?? 0)
+            }
+        )
+    }
+
     // MARK: Akce
 
+    /// Doplní rozpoznané hodnoty — přepíše jen to, co parser v úseku našel,
+    /// takže ruční úpravy ostatních polí zůstanou.
+    private func merge(_ result: DictationResult) {
+        if let value = result.customerName, !value.isEmpty { name = value }
+        if let value = result.phone, !value.isEmpty { phone = value }
+        if let kg = result.strawberryKg, kg > 0 { strawberryText = CzechFormat.quantity(kg) }
+        if let day = result.pickupDay { pickupDay = Calendar.current.startOfDay(for: day) }
+        if let minutes = result.pickupMinutes { pickupMinutes = minutes }
+        for item in result.extraItems {
+            if let index = extraItems.firstIndex(where: { $0.productName == item.productName }) {
+                extraItems[index].quantity = item.quantity
+            } else {
+                extraItems.append(item)
+            }
+        }
+        if let value = result.note, !value.isEmpty { note = value }
+    }
+
+    private func changeQuantity(of item: OrderItem, steps: Double) {
+        guard let index = extraItems.firstIndex(where: { $0.id == item.id }) else { return }
+        let step = ProductQuantity.step(forProductName: item.productName)
+        let newQuantity = extraItems[index].quantity + steps * step
+        if newQuantity <= 0 {
+            extraItems.remove(at: index)
+        } else {
+            extraItems[index].quantity = newQuantity
+        }
+    }
+
+    private func clearAll() {
+        name = ""
+        phone = ""
+        strawberryText = ""
+        note = ""
+        extraItems = []
+        pickupDay = Calendar.current.startOfDay(for: Date())
+        pickupMinutes = OrderFormModel.defaultPickupMinutes()
+        focusedField = nil
+        speech.reset()
+    }
+
     private func applyAndDismiss() {
-        guard let result = preview else { return }
-        transcriptFocused = false
-        model.apply(dictation: result)
-        editableTranscript = ""
+        focusedField = nil
+        model.customerName = name.trimmingCharacters(in: .whitespaces)
+        model.phone = phone.trimmingCharacters(in: .whitespaces)
+        model.strawberryText = strawberryText.trimmingCharacters(in: .whitespaces)
+        model.pickupDay = Calendar.current.startOfDay(for: pickupDay)
+        model.pickupMinutes = pickupMinutes
+        model.extraItems = extraItems
+        model.note = note.trimmingCharacters(in: .whitespaces)
         speech.reset()
         UINotificationFeedbackGenerator().notificationOccurred(.success)
         dismiss()
