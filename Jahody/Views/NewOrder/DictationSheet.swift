@@ -309,7 +309,7 @@ struct DictationSheet: View {
         ContentUnavailableView {
             Label("Chybí oprávnění", systemImage: "mic.slash")
         } description: {
-            Text("Povolte mikrofon a rozpoznávání řeči v Nastavení iOS → Jahody.")
+            Text("Povolte mikrofon a rozpoznávání řeči v Nastavení iOS → Jahoda.")
         } actions: {
             Button("Otevřít Nastavení") {
                 if let url = URL(string: UIApplication.openSettingsURLString) {

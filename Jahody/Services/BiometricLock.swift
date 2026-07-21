@@ -36,7 +36,7 @@ final class BiometricLock: ObservableObject {
             return
         }
 
-        context.evaluatePolicy(policy, localizedReason: "Odemkněte aplikaci Jahody") { success, _ in
+        context.evaluatePolicy(policy, localizedReason: "Odemkněte aplikaci Jahoda") { success, _ in
             Task { @MainActor in
                 if success { self.isLocked = false }
             }

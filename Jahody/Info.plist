@@ -30,7 +30,7 @@
 
 	<!-- Zámek aplikace přes Face ID -->
 	<key>NSFaceIDUsageDescription</key>
-	<string>Face ID slouží k odemčení aplikace Jahody.</string>
+	<string>Face ID slouží k odemčení aplikace Jahoda.</string>
 
 	<!-- Výběr zákazníka z kontaktů při zadávání objednávky -->
 	<key>NSContactsUsageDescription</key>

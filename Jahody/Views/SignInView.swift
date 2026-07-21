@@ -14,7 +14,7 @@ struct SignInView: View {
                 .scaledToFit()
                 .frame(width: 96, height: 96)
                 .clipShape(RoundedRectangle(cornerRadius: 20))
-            Text("Jahody")
+            Text("Jahoda")
                 .font(.largeTitle.bold())
             Text("Objednávky z farmy pro celou rodinu")
                 .foregroundStyle(.secondary)

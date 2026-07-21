@@ -48,7 +48,7 @@ private struct LockScreenView: View {
                     .scaledToFit()
                     .frame(width: 84, height: 84)
                     .clipShape(RoundedRectangle(cornerRadius: 18))
-                Text("Jahody").font(.title2.bold())
+                Text("Jahoda").font(.title2.bold())
                 Image(systemName: "faceid")
                     .font(.system(size: 40))
                     .foregroundStyle(.secondary)
