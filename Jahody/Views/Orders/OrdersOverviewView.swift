@@ -137,7 +137,7 @@ struct OrderRowView: View {
                 Text(order.customerName)
                     .font(.body.weight(.medium))
                     .strikethrough(order.status == .zrusena)
-                HStack(spacing: 12) {
+                FlowLayout(spacing: 12) {
                     ForEach(order.items) { item in
                         ProductBadge(
                             iconName: ProductIcon.assetName(for: item.productName),
@@ -148,7 +148,6 @@ struct OrderRowView: View {
                 }
                 .font(.callout)
                 .foregroundStyle(.secondary)
-                .lineLimit(1)
 
                 if order.hasPrice {
                     Text(CzechFormat.price(order.totalPrice))
@@ -159,15 +158,23 @@ struct OrderRowView: View {
 
             Spacer()
 
-            if order.status == .zrusena {
-                Text("zrušená")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else if order.calendarSyncStatus != .synced {
-                // „Nesynchronizováno s kalendářem“
-                Image(systemName: "exclamationmark.arrow.trianglehead.2.clockwise.rotate.90")
-                    .foregroundStyle(order.calendarSyncStatus == .error ? .red : .orange)
-                    .accessibilityLabel("Nesynchronizováno s kalendářem")
+            HStack(spacing: 8) {
+                if order.status != .zrusena && order.hasMissingPrice {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.red)
+                        .accessibilityLabel("U některé položky chybí cena")
+                }
+
+                if order.status == .zrusena {
+                    Text("zrušená")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else if order.calendarSyncStatus != .synced {
+                    // „Nesynchronizováno s kalendářem“
+                    Image(systemName: "exclamationmark.arrow.trianglehead.2.clockwise.rotate.90")
+                        .foregroundStyle(order.calendarSyncStatus == .error ? .red : .orange)
+                        .accessibilityLabel("Nesynchronizováno s kalendářem")
+                }
             }
         }
         .padding(.vertical, 4)

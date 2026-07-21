@@ -60,31 +60,16 @@ struct SettingsView: View {
                 }
 
                 Section {
-                    ForEach(AppIconOption.allCases) { option in
-                        Button {
-                            iconChoice = option.rawValue
-                            AppIconManager.apply(option)
-                        } label: {
-                            HStack(spacing: 12) {
-                                Image(option.loginAsset)
-                                    .resizable()
-                                    .scaledToFit()
-                                    .frame(width: 44, height: 44)
-                                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                                Text(option.label)
-                                    .foregroundStyle(.primary)
-                                Spacer()
-                                if iconChoice == option.rawValue {
-                                    Image(systemName: "checkmark")
-                                        .foregroundStyle(Color.accentColor)
-                                }
-                            }
-                        }
+                    NavigationLink {
+                        AppIconPickerView()
+                    } label: {
+                        LabeledContent(
+                            "Ikona aplikace",
+                            value: (AppIconOption(rawValue: iconChoice) ?? .realistic).label
+                        )
                     }
-                } header: {
-                    Text("Ikona aplikace")
                 } footer: {
-                    Text("Změní ikonu na ploše i jahodu na přihlašovací obrazovce. Při změně ikony na ploše ukáže iOS potvrzovací okno.")
+                    Text("Změní ikonu na ploše i jahodu na přihlašovací obrazovce.")
                 }
 
                 Section {
@@ -112,6 +97,43 @@ struct SettingsView: View {
             }
             .navigationTitle("Nastavení")
         }
+    }
+}
+
+/// Výběr ikony aplikace — otevře se z Nastavení, teprve tady se ukážou 3 varianty.
+struct AppIconPickerView: View {
+    @AppStorage(AppSettingsKeys.appIconChoice) private var iconChoice = 0
+
+    var body: some View {
+        List {
+            Section {
+                ForEach(AppIconOption.allCases) { option in
+                    Button {
+                        iconChoice = option.rawValue
+                        AppIconManager.apply(option)
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(option.loginAsset)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 44, height: 44)
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                            Text(option.label)
+                                .foregroundStyle(.primary)
+                            Spacer()
+                            if iconChoice == option.rawValue {
+                                Image(systemName: "checkmark")
+                                    .foregroundStyle(Color.accentColor)
+                            }
+                        }
+                    }
+                }
+            } footer: {
+                Text("Změní ikonu na ploše i jahodu na přihlašovací obrazovce. Při změně ikony na ploše ukáže iOS potvrzovací okno.")
+            }
+        }
+        .navigationTitle("Ikona aplikace")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 

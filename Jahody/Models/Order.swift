@@ -87,6 +87,11 @@ extension Order {
         items.contains { ($0.unitPrice ?? 0) > 0 }
     }
 
+    /// Chybí u některé položky cena? (upozornění v přehledu)
+    var hasMissingPrice: Bool {
+        items.contains { ($0.unitPrice ?? 0) <= 0 }
+    }
+
     /// Celkové kg jahod v objednávce (položky „Jahody“ v kg).
     var strawberryKg: Double {
         items

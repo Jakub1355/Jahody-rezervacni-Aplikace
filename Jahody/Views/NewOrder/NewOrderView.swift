@@ -17,6 +17,8 @@ struct NewOrderView: View {
     /// Nadiktované produkty mimo číselník — po uložení nabídneme jejich přidání.
     @State private var productsToOffer: [OrderItem] = []
     @State private var showsAddProducts = false
+    /// Diktování zvolilo „Uložit“ → uložit po zavření okna.
+    @State private var shouldSaveAfterDictation = false
 
     var body: some View {
         NavigationStack {
@@ -62,8 +64,17 @@ struct NewOrderView: View {
                 }
             }
             .navigationTitle("Nová objednávka")
-            .sheet(isPresented: $showsDictation) {
-                DictationSheet(model: model, products: products.activeProducts)
+            .sheet(isPresented: $showsDictation, onDismiss: {
+                if shouldSaveAfterDictation {
+                    shouldSaveAfterDictation = false
+                    save()
+                }
+            }) {
+                DictationSheet(
+                    model: model,
+                    products: products.activeProducts,
+                    onSave: { shouldSaveAfterDictation = true }
+                )
             }
             .sheet(isPresented: $showsAddProducts) {
                 AddDictatedProductsSheet(items: productsToOffer, products: products)

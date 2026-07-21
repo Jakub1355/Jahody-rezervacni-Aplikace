@@ -9,6 +9,8 @@ struct DictationSheet: View {
     @ObservedObject var model: OrderFormModel
     /// Aktivní produkty pro rozpoznání dalších položek.
     let products: [Product]
+    /// Zavolá se, když uživatel zvolí „Uložit objednávku“ rovnou z diktování.
+    var onSave: () -> Void = {}
 
     @StateObject private var speech = SpeechDictationService()
     @Environment(\.dismiss) private var dismiss
@@ -134,13 +136,24 @@ struct DictationSheet: View {
 
             Section {
                 Button {
-                    applyAndDismiss()
+                    apply(thenSave: true)
                 } label: {
-                    Text("Použít do formuláře")
+                    Text("Uložit objednávku")
                         .font(.headline)
                         .frame(maxWidth: .infinity, minHeight: 44)
                 }
                 .buttonStyle(.borderedProminent)
+                .disabled(speech.isRecording || !canSaveOrder)
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+
+                Button {
+                    apply(thenSave: false)
+                } label: {
+                    Text("Jen upravit ve formuláři")
+                        .frame(maxWidth: .infinity, minHeight: 40)
+                }
+                .buttonStyle(.bordered)
                 .disabled(speech.isRecording)
                 .listRowInsets(EdgeInsets())
                 .listRowBackground(Color.clear)
@@ -447,8 +460,18 @@ struct DictationSheet: View {
         speech.reset()
     }
 
-    private func applyAndDismiss() {
-        dismissKeyboard()
+    /// Jde objednávku uložit rovnou z diktování? (jméno + aspoň jedna položka)
+    private var canSaveOrder: Bool {
+        let hasName = !name.trimmingCharacters(in: .whitespaces).isEmpty
+        let hasStrawberry = (CzechFormat.parseQuantity(strawberryText) ?? 0) > 0
+        let hasItems = knownItems.contains { $0.quantity > 0 }
+            || unknownItems.contains {
+                !$0.productName.trimmingCharacters(in: .whitespaces).isEmpty && $0.quantity > 0
+            }
+        return hasName && (hasStrawberry || hasItems)
+    }
+
+    private func applyToModel() {
         model.customerName = name.trimmingCharacters(in: .whitespaces)
         model.phone = phone.trimmingCharacters(in: .whitespaces)
         model.strawberryText = strawberryText.trimmingCharacters(in: .whitespaces)
@@ -474,7 +497,13 @@ struct DictationSheet: View {
             }
         }
         model.extraItems = merged
+    }
 
+    /// Doplní data do formuláře a volitelně rovnou spustí uložení objednávky.
+    private func apply(thenSave: Bool) {
+        dismissKeyboard()
+        applyToModel()
+        if thenSave { onSave() }
         speech.reset()
         UINotificationFeedbackGenerator().notificationOccurred(.success)
         dismiss()
