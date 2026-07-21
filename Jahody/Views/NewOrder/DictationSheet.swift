@@ -27,8 +27,22 @@ struct DictationSheet: View {
     @State private var didSeed = false
     /// Řádek jahod se ukáže, až když jsou nadiktované/zadané (ať se hned nezobrazuje „0 kg“).
     @State private var showsStrawberry = false
-    /// Dosud dokončený přepis (bez probíhající nahrávky) — pro živé zpracování celého textu.
-    @State private var transcript = ""
+
+    // Snímek hodnot pořízený na začátku nahrávky. Živé rozpoznávání jen tento
+    // základ **doplňuje** — dřív rozpoznané položky se tak nemažou, jen přibývají.
+    @State private var base = Snapshot()
+
+    private struct Snapshot {
+        var name = ""
+        var phone = ""
+        var strawberryText = ""
+        var showsStrawberry = false
+        var pickupDay = Calendar.current.startOfDay(for: Date())
+        var pickupMinutes = OrderFormModel.defaultPickupMinutes()
+        var note = ""
+        var knownItems: [OrderItem] = []
+        var unknownItems: [OrderItem] = []
+    }
 
     private enum Field: Hashable { case name, phone, strawberry, note }
     @FocusState private var focusedField: Field?
@@ -68,19 +82,18 @@ struct DictationSheet: View {
                 }
             }
             .onChange(of: speech.transcript) { _, live in
-                // Živé vyplňování během diktování — zpracujeme celý dosavadní text.
+                // Živé vyplňování během mluvení — základ (dřívější) jen doplňujeme.
                 guard speech.isRecording else { return }
-                let combined = (transcript + " " + live).trimmingCharacters(in: .whitespaces)
-                applyRecognized(DictationParser.parse(combined, products: products))
+                applyFromSnippet(live)
             }
             .onChange(of: speech.isRecording) { wasRecording, isRecording in
-                // Po dokončení nahrávky si dokončený text připojíme k přepisu.
-                if wasRecording && !isRecording {
-                    let snippet = speech.transcript.trimmingCharacters(in: .whitespaces)
-                    if !snippet.isEmpty {
-                        transcript = (transcript + " " + snippet).trimmingCharacters(in: .whitespaces)
-                        applyRecognized(DictationParser.parse(transcript, products: products))
-                    }
+                if !wasRecording && isRecording {
+                    // Začátek nahrávky: uložíme aktuální stav jako pevný základ.
+                    base = currentSnapshot()
+                } else if wasRecording && !isRecording {
+                    // Konec: promítneme finální text a připravíme se na další nahrávku.
+                    applyFromSnippet(speech.transcript)
+                    base = currentSnapshot()
                     speech.reset()
                 }
             }
@@ -355,32 +368,68 @@ struct DictationSheet: View {
 
     // MARK: Akce
 
-    /// Promítne rozpoznaný text do polí. Skalární hodnoty nastaví, jen když je
-    /// parser našel (jinak ponechá). Produkty odrážejí celý dosavadní přepis.
-    private func applyRecognized(_ result: DictationResult) {
-        if let value = result.customerName, !value.isEmpty { name = value }
-        if let value = result.phone, !value.isEmpty { phone = value }
+    /// Snímek aktuálních polí (pevný základ pro následující nahrávku).
+    private func currentSnapshot() -> Snapshot {
+        Snapshot(
+            name: name, phone: phone, strawberryText: strawberryText,
+            showsStrawberry: showsStrawberry, pickupDay: pickupDay,
+            pickupMinutes: pickupMinutes, note: note,
+            knownItems: knownItems, unknownItems: unknownItems
+        )
+    }
+
+    /// Promítne rozpoznaný **úsek** do polí: začne z pevného základu (`base`) a
+    /// jen ho doplní. Dřívější položky se tak nemažou, nová nahrávka jen přidá.
+    private func applyFromSnippet(_ text: String) {
+        let result = DictationParser.parse(
+            text.trimmingCharacters(in: .whitespaces), products: products
+        )
+
+        name = (result.customerName?.isEmpty == false) ? result.customerName! : base.name
+        phone = (result.phone?.isEmpty == false) ? result.phone! : base.phone
         if let kg = result.strawberryKg, kg > 0 {
             strawberryText = CzechFormat.quantity(kg)
             showsStrawberry = true
+        } else {
+            strawberryText = base.strawberryText
+            showsStrawberry = base.showsStrawberry
         }
-        if let day = result.pickupDay { pickupDay = Calendar.current.startOfDay(for: day) }
-        if let minutes = result.pickupMinutes { pickupMinutes = minutes }
-        if let value = result.note, !value.isEmpty { note = value }
+        pickupDay = result.pickupDay.map { Calendar.current.startOfDay(for: $0) } ?? base.pickupDay
+        pickupMinutes = result.pickupMinutes ?? base.pickupMinutes
+        note = (result.note?.isEmpty == false) ? result.note! : base.note
 
-        // Produkty odrážejí celý dosavadní přepis (autoritativně) — u známých
-        // doplníme cenu i jednotku z číselníku.
-        knownItems = result.extraItems.map { item in
-            var updated = item
-            if let product = products.first(where: {
-                $0.name.caseInsensitiveCompare(item.productName) == .orderedSame
+        knownItems = mergedItems(base.knownItems, result.extraItems.map(withCatalogInfo))
+        unknownItems = mergedItems(base.unknownItems, result.unknownItems)
+    }
+
+    /// Přidá nové položky k základu a u existujících (stejný název) jen upraví
+    /// množství. Nikdy nic neodebírá.
+    private func mergedItems(_ existing: [OrderItem], _ additions: [OrderItem]) -> [OrderItem] {
+        var result = existing
+        for item in additions {
+            if let index = result.firstIndex(where: {
+                $0.productName.caseInsensitiveCompare(item.productName) == .orderedSame
             }) {
-                updated.unit = product.unit.rawValue
-                updated.unitPrice = product.price
+                result[index].quantity = item.quantity
+                result[index].unit = item.unit
+                if item.unitPrice != nil { result[index].unitPrice = item.unitPrice }
+            } else {
+                result.append(item)
             }
-            return updated
         }
-        unknownItems = result.unknownItems
+        return result
+    }
+
+    /// Doplní jednotku a cenu z číselníku (pokud produkt existuje).
+    private func withCatalogInfo(_ item: OrderItem) -> OrderItem {
+        var updated = item
+        if let product = products.first(where: {
+            $0.name.caseInsensitiveCompare(item.productName) == .orderedSame
+        }) {
+            updated.unit = product.unit.rawValue
+            updated.unitPrice = product.price
+        }
+        return updated
     }
 
     private func clearAll() {
@@ -390,7 +439,7 @@ struct DictationSheet: View {
         note = ""
         knownItems = []
         unknownItems = []
-        transcript = ""
+        base = Snapshot()
         pickupDay = Calendar.current.startOfDay(for: Date())
         pickupMinutes = OrderFormModel.defaultPickupMinutes()
         showsStrawberry = false
