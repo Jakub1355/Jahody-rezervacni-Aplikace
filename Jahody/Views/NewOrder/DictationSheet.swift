@@ -11,12 +11,13 @@ struct DictationSheet: View {
 
     @StateObject private var speech = SpeechDictationService()
     @Environment(\.dismiss) private var dismiss
-    /// Text z předchozích nahrávek (aktuální nahrávka je ve `speech.transcript`).
-    @State private var committedTranscript = ""
+    /// Dosud nadiktovaný a **ručně upravitelný** text (probíhající nahrávka je ve `speech.transcript`).
+    @State private var editableTranscript = ""
+    @FocusState private var transcriptFocused: Bool
 
-    /// Celý dosud nadiktovaný text (dřívější části + probíhající nahrávka).
+    /// Celý text (upravený/nadiktovaný + probíhající nahrávka).
     private var combinedTranscript: String {
-        (committedTranscript + " " + speech.transcript).trimmingCharacters(in: .whitespaces)
+        (editableTranscript + " " + speech.transcript).trimmingCharacters(in: .whitespaces)
     }
 
     private var preview: DictationResult? {
@@ -51,13 +52,17 @@ struct DictationSheet: View {
                         dismiss()
                     }
                 }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Hotovo") { transcriptFocused = false }
+                }
             }
             .onChange(of: speech.isRecording) { wasRecording, isRecording in
-                // Po dokončení nahrávky si její text „uložíme“ a připravíme se na další.
+                // Po dokončení nahrávky text „uložíme“ do upravitelného pole a připravíme se na další.
                 if wasRecording && !isRecording {
                     let text = speech.transcript.trimmingCharacters(in: .whitespaces)
                     if !text.isEmpty {
-                        committedTranscript = combinedTranscript
+                        editableTranscript = combinedTranscript
                     }
                     speech.reset()
                 }
@@ -113,18 +118,30 @@ struct DictationSheet: View {
                 Text("Poslouchám…")
                     .font(.headline)
                     .foregroundStyle(.red)
-            } else if combinedTranscript.isEmpty {
+                if !combinedTranscript.isEmpty {
+                    Text(combinedTranscript)
+                        .font(.body)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
+                }
+            } else if editableTranscript.isEmpty {
                 Text("Klepněte na mikrofon a mluvte")
                     .font(.headline)
                     .foregroundStyle(.secondary)
-            }
-            if !combinedTranscript.isEmpty {
-                Text(combinedTranscript)
-                    .font(.body)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
+            } else {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Rozpoznaný text — před použitím můžete opravit případné překlepy")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    TextField("Text objednávky", text: $editableTranscript, axis: .vertical)
+                        .font(.body)
+                        .lineLimit(2...8)
+                        .focused($transcriptFocused)
+                        .padding()
+                        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
+                }
             }
             if let error = speech.errorMessage {
                 Text(error)
@@ -182,7 +199,8 @@ struct DictationSheet: View {
 
             if !combinedTranscript.isEmpty, !speech.isRecording {
                 Button("Začít znovu", role: .destructive) {
-                    committedTranscript = ""
+                    editableTranscript = ""
+                    transcriptFocused = false
                     speech.reset()
                 }
             }
@@ -216,8 +234,9 @@ struct DictationSheet: View {
 
     private func applyAndDismiss() {
         guard let result = preview else { return }
+        transcriptFocused = false
         model.apply(dictation: result)
-        committedTranscript = ""
+        editableTranscript = ""
         speech.reset()
         UINotificationFeedbackGenerator().notificationOccurred(.success)
         dismiss()
