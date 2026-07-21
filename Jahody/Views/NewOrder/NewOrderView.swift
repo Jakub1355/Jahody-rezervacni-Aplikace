@@ -15,8 +15,8 @@ struct NewOrderView: View {
     /// Zvýší se po uložení → formulář se odscrolluje nahoru.
     @State private var scrollToTopTrigger = 0
     /// Nadiktované produkty mimo číselník — po uložení nabídneme jejich přidání.
-    @State private var productsToOffer: [OrderItem] = []
-    @State private var showsAddProducts = false
+    /// Přes `.sheet(item:)`, aby se data předala spolehlivě i hned po zavření diktování.
+    @State private var unlistedProducts: UnlistedProducts?
     /// Diktování zvolilo „Uložit“ → uložit po zavření okna.
     @State private var shouldSaveAfterDictation = false
 
@@ -76,8 +76,8 @@ struct NewOrderView: View {
                     onSave: { shouldSaveAfterDictation = true }
                 )
             }
-            .sheet(isPresented: $showsAddProducts) {
-                AddDictatedProductsSheet(items: productsToOffer, products: products)
+            .sheet(item: $unlistedProducts) { offer in
+                AddDictatedProductsSheet(items: offer.items, products: products)
             }
             .overlay(alignment: .top) {
                 if savedBannerVisible {
@@ -130,8 +130,7 @@ struct NewOrderView: View {
                 }
         }
         if !unlisted.isEmpty {
-            productsToOffer = unlisted
-            showsAddProducts = true
+            unlistedProducts = UnlistedProducts(items: unlisted)
         }
     }
 
@@ -142,14 +141,19 @@ struct NewOrderView: View {
     }
 }
 
+/// Obálka pro `.sheet(item:)` — nese seznam nadiktovaných produktů mimo číselník.
+struct UnlistedProducts: Identifiable {
+    let id = UUID()
+    let items: [OrderItem]
+}
+
 /// Po uložení objednávky nabídne přidání nadiktovaných produktů, které nejsou
 /// v číselníku — u každého se zvolí jednotka a (nepovinně) cena.
 private struct AddDictatedProductsSheet: View {
-    let items: [OrderItem]
     @ObservedObject var products: ProductStore
     @Environment(\.dismiss) private var dismiss
 
-    @State private var drafts: [Draft] = []
+    @State private var drafts: [Draft]
 
     private struct Draft: Identifiable {
         let id = UUID()
@@ -157,6 +161,18 @@ private struct AddDictatedProductsSheet: View {
         var unit: ProductUnit
         var priceText: String
         var add: Bool
+    }
+
+    init(items: [OrderItem], products: ProductStore) {
+        _products = ObservedObject(wrappedValue: products)
+        _drafts = State(initialValue: items.map { item in
+            Draft(
+                name: item.productName,
+                unit: ProductUnit(rawValue: item.unit) ?? .ks,
+                priceText: "",
+                add: true
+            )
+        })
     }
 
     var body: some View {
@@ -197,17 +213,6 @@ private struct AddDictatedProductsSheet: View {
                 }
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Teď ne") { dismiss() }
-                }
-            }
-            .onAppear {
-                guard drafts.isEmpty else { return }
-                drafts = items.map { item in
-                    Draft(
-                        name: item.productName,
-                        unit: ProductUnit(rawValue: item.unit) ?? .ks,
-                        priceText: "",
-                        add: true
-                    )
                 }
             }
         }
