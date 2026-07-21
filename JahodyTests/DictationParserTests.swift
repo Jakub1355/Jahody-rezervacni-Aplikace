@@ -180,6 +180,13 @@ final class DictationParserTests: XCTestCase {
         XCTAssertTrue(result.unknownItems.isEmpty)
     }
 
+    func testStrawberriesAfterAnotherProduct() {
+        // „pět sýrů tři kila jahod“ → jahody 3 kg i sýr 5 ks (jahody za markerem).
+        let result = parse("pět sýrů tři kila jahod")
+        XCTAssertEqual(result.strawberryKg, 3)
+        XCTAssertTrue(result.extraItems.contains { $0.productName == "Sýr" && $0.quantity == 5 })
+    }
+
     // MARK: Poznámka
 
     func testNoteAfterKeyword() {

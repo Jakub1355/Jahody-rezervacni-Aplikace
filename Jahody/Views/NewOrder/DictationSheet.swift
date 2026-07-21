@@ -27,6 +27,8 @@ struct DictationSheet: View {
     @State private var didSeed = false
     /// Řádek jahod se ukáže, až když jsou nadiktované/zadané (ať se hned nezobrazuje „0 kg“).
     @State private var showsStrawberry = false
+    /// Dosud dokončený přepis (bez probíhající nahrávky) — pro živé zpracování celého textu.
+    @State private var transcript = ""
 
     private enum Field: Hashable { case name, phone, strawberry, note }
     @FocusState private var focusedField: Field?
@@ -65,12 +67,19 @@ struct DictationSheet: View {
                     Button("Hotovo") { dismissKeyboard() }
                 }
             }
+            .onChange(of: speech.transcript) { _, live in
+                // Živé vyplňování během diktování — zpracujeme celý dosavadní text.
+                guard speech.isRecording else { return }
+                let combined = (transcript + " " + live).trimmingCharacters(in: .whitespaces)
+                applyRecognized(DictationParser.parse(combined, products: products))
+            }
             .onChange(of: speech.isRecording) { wasRecording, isRecording in
-                // Po dokončení nahrávky rozpoznáme právě nadiktovaný úsek a doplníme pole.
+                // Po dokončení nahrávky si dokončený text připojíme k přepisu.
                 if wasRecording && !isRecording {
                     let snippet = speech.transcript.trimmingCharacters(in: .whitespaces)
                     if !snippet.isEmpty {
-                        merge(DictationParser.parse(snippet, products: products))
+                        transcript = (transcript + " " + snippet).trimmingCharacters(in: .whitespaces)
+                        applyRecognized(DictationParser.parse(transcript, products: products))
                     }
                     speech.reset()
                 }
@@ -84,8 +93,6 @@ struct DictationSheet: View {
                 pickupDay = model.pickupDay
                 pickupMinutes = model.pickupMinutes
                 note = model.note
-                knownItems = model.extraItems.filter { isInCatalog($0.productName) }
-                unknownItems = model.extraItems.filter { !isInCatalog($0.productName) }
                 showsStrawberry = !strawberryText.trimmingCharacters(in: .whitespaces).isEmpty
             }
         }
@@ -315,10 +322,6 @@ struct DictationSheet: View {
 
     // MARK: Pomocné
 
-    private func isInCatalog(_ productName: String) -> Bool {
-        products.contains { $0.name.caseInsensitiveCompare(productName) == .orderedSame }
-    }
-
     /// Spolehlivě schová klávesnici bez ohledu na to, které pole je právě aktivní
     /// (číselná pole u produktů nejsou vázaná na `focusedField`).
     private func dismissKeyboard() {
@@ -352,9 +355,9 @@ struct DictationSheet: View {
 
     // MARK: Akce
 
-    /// Doplní rozpoznané hodnoty — přepíše jen to, co parser v úseku našel,
-    /// takže ruční úpravy ostatních polí zůstanou.
-    private func merge(_ result: DictationResult) {
+    /// Promítne rozpoznaný text do polí. Skalární hodnoty nastaví, jen když je
+    /// parser našel (jinak ponechá). Produkty odrážejí celý dosavadní přepis.
+    private func applyRecognized(_ result: DictationResult) {
         if let value = result.customerName, !value.isEmpty { name = value }
         if let value = result.phone, !value.isEmpty { phone = value }
         if let kg = result.strawberryKg, kg > 0 {
@@ -363,23 +366,21 @@ struct DictationSheet: View {
         }
         if let day = result.pickupDay { pickupDay = Calendar.current.startOfDay(for: day) }
         if let minutes = result.pickupMinutes { pickupMinutes = minutes }
-        for item in result.extraItems {
-            if let index = knownItems.firstIndex(where: { $0.productName == item.productName }) {
-                knownItems[index].quantity = item.quantity
-            } else {
-                knownItems.append(item)
-            }
-        }
-        for item in result.unknownItems {
-            if let index = unknownItems.firstIndex(where: {
-                $0.productName.caseInsensitiveCompare(item.productName) == .orderedSame
-            }) {
-                unknownItems[index].quantity = item.quantity
-            } else {
-                unknownItems.append(item)
-            }
-        }
         if let value = result.note, !value.isEmpty { note = value }
+
+        // Produkty odrážejí celý dosavadní přepis (autoritativně) — u známých
+        // doplníme cenu i jednotku z číselníku.
+        knownItems = result.extraItems.map { item in
+            var updated = item
+            if let product = products.first(where: {
+                $0.name.caseInsensitiveCompare(item.productName) == .orderedSame
+            }) {
+                updated.unit = product.unit.rawValue
+                updated.unitPrice = product.price
+            }
+            return updated
+        }
+        unknownItems = result.unknownItems
     }
 
     private func clearAll() {
@@ -389,6 +390,7 @@ struct DictationSheet: View {
         note = ""
         knownItems = []
         unknownItems = []
+        transcript = ""
         pickupDay = Calendar.current.startOfDay(for: Date())
         pickupMinutes = OrderFormModel.defaultPickupMinutes()
         showsStrawberry = false
@@ -405,14 +407,24 @@ struct DictationSheet: View {
         model.pickupMinutes = pickupMinutes
         model.note = note.trimmingCharacters(in: .whitespaces)
 
-        let cleanedUnknown = unknownItems
-            .map { item -> OrderItem in
-                var updated = item
-                updated.productName = item.productName.trimmingCharacters(in: .whitespaces)
-                return updated
+        let dictated = (knownItems + unknownItems.map { item -> OrderItem in
+            var updated = item
+            updated.productName = item.productName.trimmingCharacters(in: .whitespaces)
+            return updated
+        }).filter { !$0.productName.isEmpty && $0.quantity > 0 }
+
+        // Nadiktované položky přidáme/aktualizujeme ve formuláři (nepřepíšeme případné ruční).
+        var merged = model.extraItems
+        for item in dictated {
+            if let index = merged.firstIndex(where: {
+                $0.productName.caseInsensitiveCompare(item.productName) == .orderedSame
+            }) {
+                merged[index] = item
+            } else {
+                merged.append(item)
             }
-            .filter { !$0.productName.isEmpty && $0.quantity > 0 }
-        model.extraItems = knownItems.filter { $0.quantity > 0 } + cleanedUnknown
+        }
+        model.extraItems = merged
 
         speech.reset()
         UINotificationFeedbackGenerator().notificationOccurred(.success)

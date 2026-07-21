@@ -259,8 +259,11 @@ enum DictationParser {
         }
         consumed.insert(markerIndex)
 
-        // Produkt hned před množstvím → patří jemu, ne jahodám (např. „brambory tři kila“).
-        if earliest - 1 >= 0,
+        // Produkt hned před množstvím → patří jemu, ne jahodám (např. „brambory tři kila“) —
+        // pokud ovšem za markerem výslovně nenásledují „jahody“ („pět sýrů tři kila jahod“).
+        let strawberryFollowsMarker = markerIndex + 1 < folded.count
+            && folded[markerIndex + 1].hasPrefix("jahod")
+        if !strawberryFollowsMarker, earliest - 1 >= 0,
            nonStrawberry.contains(where: { matchesProduct(folded[earliest - 1], $0) }) {
             return (nil, Set<Int>())
         }
