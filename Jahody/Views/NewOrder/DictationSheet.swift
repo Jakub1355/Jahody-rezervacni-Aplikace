@@ -25,6 +25,8 @@ struct DictationSheet: View {
     @State private var unknownItems: [OrderItem] = []
     @State private var note = ""
     @State private var didSeed = false
+    /// Řádek jahod se ukáže, až když jsou nadiktované/zadané (ať se hned nezobrazuje „0 kg“).
+    @State private var showsStrawberry = false
 
     private enum Field: Hashable { case name, phone, strawberry, note }
     @FocusState private var focusedField: Field?
@@ -60,7 +62,7 @@ struct DictationSheet: View {
                 }
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
-                    Button("Hotovo") { focusedField = nil }
+                    Button("Hotovo") { dismissKeyboard() }
                 }
             }
             .onChange(of: speech.isRecording) { wasRecording, isRecording in
@@ -84,6 +86,7 @@ struct DictationSheet: View {
                 note = model.note
                 knownItems = model.extraItems.filter { isInCatalog($0.productName) }
                 unknownItems = model.extraItems.filter { !isInCatalog($0.productName) }
+                showsStrawberry = !strawberryText.trimmingCharacters(in: .whitespaces).isEmpty
             }
         }
     }
@@ -131,6 +134,7 @@ struct DictationSheet: View {
                 }
             }
         }
+        .scrollDismissesKeyboard(.interactively)
     }
 
     // MARK: Editovatelná rozpoznaná pole
@@ -154,16 +158,18 @@ struct DictationSheet: View {
                     .focused($focusedField, equals: .phone)
             }
 
-            HStack {
-                Image("ic_jahody").resizable().scaledToFit().frame(width: 24, height: 24)
-                Text("Jahody").foregroundStyle(.secondary)
-                Spacer()
-                TextField("0", text: $strawberryText)
-                    .keyboardType(.decimalPad)
-                    .multilineTextAlignment(.trailing)
-                    .focused($focusedField, equals: .strawberry)
-                    .frame(width: 80)
-                Text("kg").foregroundStyle(.secondary)
+            if showsStrawberry {
+                HStack {
+                    Image("ic_jahody").resizable().scaledToFit().frame(width: 24, height: 24)
+                    Text("Jahody").foregroundStyle(.secondary)
+                    Spacer()
+                    TextField("0", text: $strawberryText)
+                        .keyboardType(.decimalPad)
+                        .multilineTextAlignment(.trailing)
+                        .focused($focusedField, equals: .strawberry)
+                        .frame(width: 80)
+                    Text("kg").foregroundStyle(.secondary)
+                }
             }
 
             ForEach($knownItems) { $item in
@@ -232,7 +238,7 @@ struct DictationSheet: View {
 
     private var micButton: some View {
         Button {
-            focusedField = nil
+            dismissKeyboard()
             speech.toggle()
         } label: {
             ZStack {
@@ -313,6 +319,15 @@ struct DictationSheet: View {
         products.contains { $0.name.caseInsensitiveCompare(productName) == .orderedSame }
     }
 
+    /// Spolehlivě schová klávesnici bez ohledu na to, které pole je právě aktivní
+    /// (číselná pole u produktů nejsou vázaná na `focusedField`).
+    private func dismissKeyboard() {
+        focusedField = nil
+        UIApplication.shared.sendAction(
+            #selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil
+        )
+    }
+
     private func unitLabel(_ raw: String) -> String {
         ProductUnit(rawValue: raw)?.label ?? raw
     }
@@ -342,7 +357,10 @@ struct DictationSheet: View {
     private func merge(_ result: DictationResult) {
         if let value = result.customerName, !value.isEmpty { name = value }
         if let value = result.phone, !value.isEmpty { phone = value }
-        if let kg = result.strawberryKg, kg > 0 { strawberryText = CzechFormat.quantity(kg) }
+        if let kg = result.strawberryKg, kg > 0 {
+            strawberryText = CzechFormat.quantity(kg)
+            showsStrawberry = true
+        }
         if let day = result.pickupDay { pickupDay = Calendar.current.startOfDay(for: day) }
         if let minutes = result.pickupMinutes { pickupMinutes = minutes }
         for item in result.extraItems {
@@ -373,12 +391,13 @@ struct DictationSheet: View {
         unknownItems = []
         pickupDay = Calendar.current.startOfDay(for: Date())
         pickupMinutes = OrderFormModel.defaultPickupMinutes()
-        focusedField = nil
+        showsStrawberry = false
+        dismissKeyboard()
         speech.reset()
     }
 
     private func applyAndDismiss() {
-        focusedField = nil
+        dismissKeyboard()
         model.customerName = name.trimmingCharacters(in: .whitespaces)
         model.phone = phone.trimmingCharacters(in: .whitespaces)
         model.strawberryText = strawberryText.trimmingCharacters(in: .whitespaces)
