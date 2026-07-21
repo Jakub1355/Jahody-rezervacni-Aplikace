@@ -4,6 +4,7 @@ import UIKit
 /// Nadiktování objednávky. Diktovat lze **po částech a v jakémkoliv pořadí** —
 /// rozpoznané hodnoty se doplní do editovatelných polí níže. Každou hodnotu lze
 /// ještě **ručně opravit** (např. překlep ve jméně) a teprve pak poslat do formuláře.
+/// Produkty mimo číselník spadnou do sekce „Další“.
 struct DictationSheet: View {
     @ObservedObject var model: OrderFormModel
     /// Aktivní produkty pro rozpoznání dalších položek.
@@ -18,7 +19,10 @@ struct DictationSheet: View {
     @State private var strawberryText = ""
     @State private var pickupDay = Calendar.current.startOfDay(for: Date())
     @State private var pickupMinutes = OrderFormModel.defaultPickupMinutes()
-    @State private var extraItems: [OrderItem] = []
+    /// Produkty z číselníku (každý vlastní řádek s ručním množstvím).
+    @State private var knownItems: [OrderItem] = []
+    /// Produkty mimo číselník („Další“).
+    @State private var unknownItems: [OrderItem] = []
     @State private var note = ""
     @State private var didSeed = false
 
@@ -29,7 +33,8 @@ struct DictationSheet: View {
         !name.trimmingCharacters(in: .whitespaces).isEmpty
             || !phone.trimmingCharacters(in: .whitespaces).isEmpty
             || !strawberryText.trimmingCharacters(in: .whitespaces).isEmpty
-            || !extraItems.isEmpty
+            || !knownItems.isEmpty
+            || !unknownItems.isEmpty
             || !note.trimmingCharacters(in: .whitespaces).isEmpty
     }
 
@@ -76,8 +81,9 @@ struct DictationSheet: View {
                 strawberryText = model.strawberryText
                 pickupDay = model.pickupDay
                 pickupMinutes = model.pickupMinutes
-                extraItems = model.extraItems
                 note = model.note
+                knownItems = model.extraItems.filter { isInCatalog($0.productName) }
+                unknownItems = model.extraItems.filter { !isInCatalog($0.productName) }
             }
         }
     }
@@ -98,6 +104,10 @@ struct DictationSheet: View {
             }
 
             recognizedSection
+
+            if !unknownItems.isEmpty {
+                unknownSection
+            }
 
             Section {
                 Button {
@@ -145,46 +155,33 @@ struct DictationSheet: View {
             }
 
             HStack {
+                Image("ic_jahody").resizable().scaledToFit().frame(width: 24, height: 24)
                 Text("Jahody").foregroundStyle(.secondary)
                 Spacer()
                 TextField("0", text: $strawberryText)
                     .keyboardType(.decimalPad)
                     .multilineTextAlignment(.trailing)
                     .focused($focusedField, equals: .strawberry)
-                    .frame(width: 90)
+                    .frame(width: 80)
                 Text("kg").foregroundStyle(.secondary)
             }
 
-            ForEach(extraItems) { item in
+            ForEach($knownItems) { $item in
                 HStack {
                     Image(ProductIcon.assetName(for: item.productName))
                         .resizable()
                         .scaledToFit()
                         .frame(width: 24, height: 24)
-                    Text(item.productName)
+                    Text(item.productName).foregroundStyle(.secondary)
                     Spacer()
-                    Button {
-                        changeQuantity(of: item, steps: -1)
-                    } label: {
-                        Image(systemName: "minus.circle.fill")
-                            .font(.title3)
-                            .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                    Text("\(CzechFormat.quantity(item.quantity)) \(item.unit)")
-                        .font(.body.monospacedDigit())
-                        .frame(minWidth: 56)
-                    Button {
-                        changeQuantity(of: item, steps: 1)
-                    } label: {
-                        Image(systemName: "plus.circle.fill")
-                            .font(.title3)
-                            .foregroundStyle(Color.accentColor)
-                    }
-                    .buttonStyle(.plain)
+                    TextField("0", value: $item.quantity, format: .number)
+                        .keyboardType(.decimalPad)
+                        .multilineTextAlignment(.trailing)
+                        .frame(width: 70)
+                    Text(unitLabel(item.unit)).foregroundStyle(.secondary)
                 }
             }
-            .onDelete { extraItems.remove(atOffsets: $0) }
+            .onDelete { knownItems.remove(atOffsets: $0) }
 
             DatePicker("Den", selection: $pickupDay, displayedComponents: .date)
                 .environment(\.locale, CzechFormat.locale)
@@ -199,6 +196,35 @@ struct DictationSheet: View {
                     .lineLimit(1...4)
                     .focused($focusedField, equals: .note)
             }
+        }
+    }
+
+    // MARK: Produkty mimo číselník
+
+    private var unknownSection: some View {
+        Section {
+            ForEach($unknownItems) { $item in
+                HStack(spacing: 8) {
+                    TextField("název produktu", text: $item.productName)
+                    Spacer(minLength: 4)
+                    TextField("0", value: $item.quantity, format: .number)
+                        .keyboardType(.decimalPad)
+                        .multilineTextAlignment(.trailing)
+                        .frame(width: 56)
+                    Picker("", selection: $item.unit) {
+                        ForEach(ProductUnit.allCases) { unit in
+                            Text(unit.label).tag(unit.rawValue)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                }
+            }
+            .onDelete { unknownItems.remove(atOffsets: $0) }
+        } header: {
+            Text("Další (nové produkty)")
+        } footer: {
+            Text("Tyto produkty nejsou v číselníku. Po uložení objednávky nabídneme jejich přidání (s jednotkou a cenou).")
         }
     }
 
@@ -281,8 +307,17 @@ struct DictationSheet: View {
         }
     }
 
-    // MARK: Čas (převod minut ↔ Date pro DatePicker)
+    // MARK: Pomocné
 
+    private func isInCatalog(_ productName: String) -> Bool {
+        products.contains { $0.name.caseInsensitiveCompare(productName) == .orderedSame }
+    }
+
+    private func unitLabel(_ raw: String) -> String {
+        ProductUnit(rawValue: raw)?.label ?? raw
+    }
+
+    /// Čas (převod minut ↔ Date pro DatePicker).
     private var timeBinding: Binding<Date> {
         Binding(
             get: {
@@ -311,24 +346,22 @@ struct DictationSheet: View {
         if let day = result.pickupDay { pickupDay = Calendar.current.startOfDay(for: day) }
         if let minutes = result.pickupMinutes { pickupMinutes = minutes }
         for item in result.extraItems {
-            if let index = extraItems.firstIndex(where: { $0.productName == item.productName }) {
-                extraItems[index].quantity = item.quantity
+            if let index = knownItems.firstIndex(where: { $0.productName == item.productName }) {
+                knownItems[index].quantity = item.quantity
             } else {
-                extraItems.append(item)
+                knownItems.append(item)
+            }
+        }
+        for item in result.unknownItems {
+            if let index = unknownItems.firstIndex(where: {
+                $0.productName.caseInsensitiveCompare(item.productName) == .orderedSame
+            }) {
+                unknownItems[index].quantity = item.quantity
+            } else {
+                unknownItems.append(item)
             }
         }
         if let value = result.note, !value.isEmpty { note = value }
-    }
-
-    private func changeQuantity(of item: OrderItem, steps: Double) {
-        guard let index = extraItems.firstIndex(where: { $0.id == item.id }) else { return }
-        let step = ProductQuantity.step(forProductName: item.productName)
-        let newQuantity = extraItems[index].quantity + steps * step
-        if newQuantity <= 0 {
-            extraItems.remove(at: index)
-        } else {
-            extraItems[index].quantity = newQuantity
-        }
     }
 
     private func clearAll() {
@@ -336,7 +369,8 @@ struct DictationSheet: View {
         phone = ""
         strawberryText = ""
         note = ""
-        extraItems = []
+        knownItems = []
+        unknownItems = []
         pickupDay = Calendar.current.startOfDay(for: Date())
         pickupMinutes = OrderFormModel.defaultPickupMinutes()
         focusedField = nil
@@ -350,8 +384,17 @@ struct DictationSheet: View {
         model.strawberryText = strawberryText.trimmingCharacters(in: .whitespaces)
         model.pickupDay = Calendar.current.startOfDay(for: pickupDay)
         model.pickupMinutes = pickupMinutes
-        model.extraItems = extraItems
         model.note = note.trimmingCharacters(in: .whitespaces)
+
+        let cleanedUnknown = unknownItems
+            .map { item -> OrderItem in
+                var updated = item
+                updated.productName = item.productName.trimmingCharacters(in: .whitespaces)
+                return updated
+            }
+            .filter { !$0.productName.isEmpty && $0.quantity > 0 }
+        model.extraItems = knownItems.filter { $0.quantity > 0 } + cleanedUnknown
+
         speech.reset()
         UINotificationFeedbackGenerator().notificationOccurred(.success)
         dismiss()

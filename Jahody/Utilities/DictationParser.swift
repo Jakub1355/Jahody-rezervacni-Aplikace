@@ -11,6 +11,9 @@ struct DictationResult {
     /// Čas vyzvednutí v minutách od půlnoci (zarovnaný na 30 minut).
     var pickupMinutes: Int?
     var extraItems: [OrderItem] = []
+    /// Nadiktované produkty, které nejsou v číselníku (např. „pět třešní“).
+    /// Jednotka je zatím „ks“ — upřesní se ve formuláři / při přidání do číselníku.
+    var unknownItems: [OrderItem] = []
     var note: String?
     /// Původní přepis řeči — ať se nic neztratí, i když parser něco mine.
     var transcript: String = ""
@@ -57,11 +60,18 @@ enum DictationParser {
         }
         let strawberry = extractStrawberryKg(tokens: tokens, folded: folded, products: products)
         result.strawberryKg = strawberry.kg
-        result.extraItems = extractExtraItems(
+        let extra = extractExtraItems(
             tokens: tokens,
             folded: folded,
             products: products,
             consumed: strawberry.consumed
+        )
+        result.extraItems = extra.items
+        result.unknownItems = extractUnknownItems(
+            tokens: tokens,
+            folded: folded,
+            products: products,
+            used: extra.used
         )
 
         // 5) Jméno = vedoucí slova před prvním číslem/klíčovým slovem/produktem.
@@ -265,7 +275,7 @@ enum DictationParser {
         folded: [String],
         products: [Product],
         consumed: Set<Int>
-    ) -> [OrderItem] {
+    ) -> (items: [OrderItem], used: Set<Int>) {
         let candidates = products.filter { $0.isActive && !Order.isStrawberry(productName: $0.name) }
 
         var used = consumed
@@ -293,7 +303,51 @@ enum DictationParser {
                 }
             }
         }
+        return (items, used)
+    }
+
+    /// Rozpozná „číslo + neznámé slovo“ jako produkt mimo číselník („pět třešní“).
+    /// Neznámý produkt čekáme za číslem; jednotka je zatím „ks“.
+    private static func extractUnknownItems(
+        tokens: [String],
+        folded: [String],
+        products: [Product],
+        used: Set<Int>
+    ) -> [OrderItem] {
+        var used = used
+        var items: [OrderItem] = []
+
+        for i in folded.indices where !used.contains(i) {
+            guard let quantity = doubleValue(tokens[i], folded: folded[i]), quantity > 0 else { continue }
+            if isTimeNumber(index: i, folded: folded) { continue }
+
+            for offset in [1, 2] {
+                let j = i + offset
+                guard j >= 0, j < folded.count, !used.contains(j) else { continue }
+                guard isPlausibleUnknownProduct(folded[j], products: products) else { continue }
+                items.append(OrderItem(
+                    productName: capitalizeFirst(tokens[j]),
+                    quantity: quantity,
+                    unit: ProductUnit.ks.rawValue
+                ))
+                used.insert(i); used.insert(j)
+                break
+            }
+        }
         return items
+    }
+
+    /// Vypadá slovo jako (neznámý) produkt? Vyloučí čísla, jednotky, čas, dny,
+    /// výplňová/klíčová slova i názvy produktů, které v číselníku už jsou.
+    private static func isPlausibleUnknownProduct(_ token: String, products: [Product]) -> Bool {
+        guard token.count >= 3, token.first?.isLetter == true else { return false }
+        if numberWords[token] != nil || minuteWords[token] != nil { return false }
+        if token.hasPrefix("hodin") { return false }
+        if kgMarkers.contains(where: { token == $0 || token.hasPrefix($0) }) { return false }
+        if nameStopWords.contains(token) || nameFillerWords.contains(token) { return false }
+        if weekdayStems.contains(where: { token.hasPrefix($0.stem) }) { return false }
+        if products.contains(where: { matchesProduct(token, $0) }) { return false }
+        return true
     }
 
     /// Je číslo na daném indexu časový údaj (po „v/ve/o“ nebo před „hodin“)?

@@ -164,6 +164,22 @@ final class DictationParserTests: XCTestCase {
         XCTAssertTrue(result.extraItems.contains { $0.productName == "Brambory" && $0.quantity == 3 })
     }
 
+    // MARK: Neznámé produkty (mimo číselník)
+
+    func testUnknownProductGoesToUnknownItems() {
+        // „třešně“ nejsou ve výchozím číselníku → neznámá položka.
+        let result = parse("Jana pět třešní")
+        XCTAssertEqual(result.customerName, "Jana")
+        XCTAssertTrue(result.extraItems.isEmpty)
+        XCTAssertTrue(result.unknownItems.contains { $0.quantity == 5 })
+    }
+
+    func testKnownProductIsNotUnknown() {
+        let result = parse("deset vajec")
+        XCTAssertTrue(result.extraItems.contains { $0.productName == "Vajíčka" && $0.quantity == 10 })
+        XCTAssertTrue(result.unknownItems.isEmpty)
+    }
+
     // MARK: Poznámka
 
     func testNoteAfterKeyword() {

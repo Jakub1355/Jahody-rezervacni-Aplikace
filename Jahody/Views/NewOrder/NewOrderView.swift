@@ -14,6 +14,9 @@ struct NewOrderView: View {
     @State private var showsDictation = false
     /// Zvýší se po uložení → formulář se odscrolluje nahoru.
     @State private var scrollToTopTrigger = 0
+    /// Nadiktované produkty mimo číselník — po uložení nabídneme jejich přidání.
+    @State private var productsToOffer: [OrderItem] = []
+    @State private var showsAddProducts = false
 
     var body: some View {
         NavigationStack {
@@ -62,6 +65,9 @@ struct NewOrderView: View {
             .sheet(isPresented: $showsDictation) {
                 DictationSheet(model: model, products: products.activeProducts)
             }
+            .sheet(isPresented: $showsAddProducts) {
+                AddDictatedProductsSheet(items: productsToOffer, products: products)
+            }
             .overlay(alignment: .top) {
                 if savedBannerVisible {
                     Label("Objednávka uložena", systemImage: "checkmark.circle.fill")
@@ -103,11 +109,104 @@ struct NewOrderView: View {
         // …a událost v kalendáři se vytvoří asynchronně (rovnou tato objednávka),
         // uložení tím nikdy neblokuje.
         Task { await app.calendarSync.syncNow(order) }
+
+        // Nabídnout přidání nadiktovaných produktů, které nejsou v číselníku.
+        let unlisted = order.items.filter { item in
+            !Order.isStrawberry(productName: item.productName)
+                && !item.productName.trimmingCharacters(in: .whitespaces).isEmpty
+                && !products.products.contains {
+                    $0.name.caseInsensitiveCompare(item.productName) == .orderedSame
+                }
+        }
+        if !unlisted.isEmpty {
+            productsToOffer = unlisted
+            showsAddProducts = true
+        }
     }
 
     private func dismissKeyboard() {
         UIApplication.shared.sendAction(
             #selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil
         )
+    }
+}
+
+/// Po uložení objednávky nabídne přidání nadiktovaných produktů, které nejsou
+/// v číselníku — u každého se zvolí jednotka a (nepovinně) cena.
+private struct AddDictatedProductsSheet: View {
+    let items: [OrderItem]
+    @ObservedObject var products: ProductStore
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var drafts: [Draft] = []
+
+    private struct Draft: Identifiable {
+        let id = UUID()
+        var name: String
+        var unit: ProductUnit
+        var priceText: String
+        var add: Bool
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Text("Tyto produkty jste nadiktovali, ale nejsou v číselníku. Chcete je přidat, aby se příště samy nabízely?")
+                        .foregroundStyle(.secondary)
+                }
+
+                ForEach($drafts) { $draft in
+                    Section {
+                        Toggle("Přidat do číselníku", isOn: $draft.add)
+                        if draft.add {
+                            TextField("Název produktu", text: $draft.name)
+                            Picker("Jednotka", selection: $draft.unit) {
+                                ForEach(ProductUnit.allCases) { unit in
+                                    Text(unit.label).tag(unit)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                            TextField("Cena za jednotku (Kč, nepovinné)", text: $draft.priceText)
+                                .keyboardType(.decimalPad)
+                        }
+                    } header: {
+                        Text(draft.name.isEmpty ? "Nový produkt" : draft.name)
+                    }
+                }
+            }
+            .navigationTitle("Nové produkty")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Hotovo") {
+                        addSelected()
+                        dismiss()
+                    }
+                }
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Teď ne") { dismiss() }
+                }
+            }
+            .onAppear {
+                guard drafts.isEmpty else { return }
+                drafts = items.map { item in
+                    Draft(
+                        name: item.productName,
+                        unit: ProductUnit(rawValue: item.unit) ?? .ks,
+                        priceText: "",
+                        add: true
+                    )
+                }
+            }
+        }
+    }
+
+    private func addSelected() {
+        for draft in drafts where draft.add {
+            let name = draft.name.trimmingCharacters(in: .whitespaces)
+            guard !name.isEmpty else { continue }
+            products.add(name: name, unit: draft.unit, price: CzechFormat.parseQuantity(draft.priceText))
+        }
     }
 }
