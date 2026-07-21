@@ -159,9 +159,6 @@ struct OrderFormFields: View {
                             model.addExtraItem(product: product)
                         }
                     }
-                    Chip(label: "＋ Nový produkt", isSelected: false) {
-                        showsNewProduct = true
-                    }
                 }
             }
 
@@ -195,6 +192,12 @@ struct OrderFormFields: View {
                 }
                 .frame(minHeight: 40)
             }
+
+            // Přidání nového produktu — až pod zadanými položkami.
+            Chip(label: "＋ Nový produkt", isSelected: false) {
+                showsNewProduct = true
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
