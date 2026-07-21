@@ -27,8 +27,9 @@ final class OrderFormModel: ObservableObject {
     }
 
     /// Výchozí čas vyzvednutí = aktuální čas zařízení zaokrouhlený na nejbližší
-    /// 30minutový slot, omezený na rozsah 7:00–19:30.
-    static func defaultPickupMinutes(now: Date = Date(), calendar: Calendar = .current) -> Int {
+    /// 30minutový slot, omezený na rozsah 7:00–19:30. `nonisolated` — čistá
+    /// funkce bez stavu, volatelná i z defaultní hodnoty struktury.
+    nonisolated static func defaultPickupMinutes(now: Date = Date(), calendar: Calendar = .current) -> Int {
         let comps = calendar.dateComponents([.hour, .minute], from: now)
         let minutes = (comps.hour ?? 0) * 60 + (comps.minute ?? 0)
         let rounded = Int((Double(minutes) / 30).rounded()) * 30
