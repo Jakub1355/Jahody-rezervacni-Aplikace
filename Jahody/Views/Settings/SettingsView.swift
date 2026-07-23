@@ -50,7 +50,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Produkty")
                 } footer: {
-                    Text("„Načíst náš ceník" nahraje kompletní ceník farmy (jahody, sirupy, jogurty…) a smaže dosavadní testovací produkty.")
+                    Text("Tlačítko „Načíst náš ceník“ nahraje kompletní ceník farmy (jahody, sirupy, jogurty…) a smaže dosavadní testovací produkty.")
                 }
 
                 Section {
