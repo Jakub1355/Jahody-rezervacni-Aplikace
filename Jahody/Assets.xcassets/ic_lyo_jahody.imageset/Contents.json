@@ -1,0 +1,12 @@
+{
+  "images" : [
+    {
+      "filename" : "ic_lyo_jahody.png",
+      "idiom" : "universal"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}

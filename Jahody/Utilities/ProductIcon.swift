@@ -44,13 +44,16 @@ enum ProductIcon {
     // protože např. „Marmeláda jahoda-rybíz“ i „Lyofilizované jahody“ obsahují „jahod“.
     private static let assetMapping: [([String], String)] = [
         (["marmelad", "dzem"], "ic_marmelada"),
-        (["lyofiliz"], "ic_lyofilizovane"),
+        (["lyofilizovane jahod"], "ic_lyo_jahody"),
+        (["lyofilizovany mix", "lyofilizovane mix"], "ic_lyo_mix"),
+        (["lyofilizovane svestk", "lyofilizovany svestk"], "ic_lyo_svestky"),
         (["tvarohacek"], "ic_jogurt"),
         (["jogurt"], "ic_jogurt"),
         (["napoj"], "ic_napoj"),
         (["granola"], "ic_granola"),
         (["nite", "korbac"], "ic_korbacky"),
         (["maslo"], "ic_maslo"),
+        (["ghi"], "ic_ghi"),
         (["jahod"], "ic_jahody"),
         (["vajic", "vejc", "vajec"], "ic_vajicka"),
         (["sirup"], "ic_sirup"),
