@@ -40,11 +40,20 @@ enum ProductIcon {
             .lowercased()
     }
 
+    // Pořadí záleží — konkrétnější (delší/specifičtější) klíče musí být PŘED obecnějšími,
+    // protože např. „Marmeláda jahoda-rybíz“ i „Lyofilizované jahody“ obsahují „jahod“.
     private static let assetMapping: [([String], String)] = [
+        (["marmelad", "dzem"], "ic_marmelada"),
+        (["lyofiliz"], "ic_lyofilizovane"),
+        (["tvarohacek"], "ic_jogurt"),
+        (["jogurt"], "ic_jogurt"),
+        (["napoj"], "ic_napoj"),
+        (["granola"], "ic_granola"),
+        (["nite", "korbac"], "ic_korbacky"),
+        (["maslo"], "ic_maslo"),
         (["jahod"], "ic_jahody"),
         (["vajic", "vejc", "vajec"], "ic_vajicka"),
         (["sirup"], "ic_sirup"),
-        (["marmelad", "dzem"], "ic_marmelada"),
         (["syr"], "ic_syr"),
         (["mlek", "mlik"], "ic_mleko"),
         (["tvaroh"], "ic_tvaroh"),
