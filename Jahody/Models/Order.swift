@@ -25,25 +25,36 @@ enum CalendarSyncStatus: String, Codable {
     case error
 }
 
-/// Jedna položka objednávky, např. { productName: "Jahody", quantity: 3, unit: "kg" }.
+/// Jedna položka objednávky. `quantity` je počet balení (nebo kg/l u sypkých),
+/// `unitPrice` je cena za jedno balení, `size` je gramáž balení („2,5 kg").
 struct OrderItem: Identifiable, Codable, Equatable, Hashable {
     var id: String = UUID().uuidString
     var productName: String
     var quantity: Double
     var unit: String
-    /// Cena za jednotku v době objednání (Kč). Nepovinné.
+    /// Gramáž balení v době objednání („2,5 kg", „250 ml"). Nepovinné.
+    var size: String = ""
+    /// Cena za jedno balení v době objednání (Kč). Nepovinné.
     var unitPrice: Double?
 
     // `id` je jen lokální (pro SwiftUI seznamy), do Firestore se neukládá.
     enum CodingKeys: String, CodingKey {
-        case productName, quantity, unit, unitPrice
+        case productName, quantity, unit, size, unitPrice
     }
 }
 
 extension OrderItem {
-    /// Cena za tuto položku (množství × jednotková cena), pokud je cena známá.
+    /// Cena za tuto položku (počet × cena za balení), pokud je cena známá.
     var lineTotal: Double {
         quantity * (unitPrice ?? 0)
+    }
+
+    /// „2× 2,5 kg" pro balení, jinak „6 kg" / „10 ks".
+    var quantityLabel: String {
+        if !size.isEmpty {
+            return "\(CzechFormat.quantity(quantity))× \(size)"
+        }
+        return "\(CzechFormat.quantity(quantity)) \(unit)"
     }
 }
 
@@ -92,11 +103,25 @@ extension Order {
         items.contains { ($0.unitPrice ?? 0) <= 0 }
     }
 
-    /// Celkové kg jahod v objednávce (položky „Jahody“ v kg).
+    /// Celkové kg jahod v objednávce — dopočítá se z gramáže balení
+    /// (2× „Bedýnka 2,5 kg" = 5 kg). Starší objednávky měly jahody přímo v kg.
     var strawberryKg: Double {
         items
-            .filter { $0.unit == ProductUnit.kg.rawValue && Self.isStrawberry(productName: $0.productName) }
-            .reduce(0) { $0 + $1.quantity }
+            .filter { Self.isStrawberry(productName: $0.productName) }
+            .reduce(0) { sum, item in
+                if let sizeKg = Product.kg(fromSize: item.size) {
+                    return sum + item.quantity * sizeKg
+                }
+                if item.unit == ProductUnit.kg.rawValue {
+                    return sum + item.quantity   // zpětná kompatibilita
+                }
+                return sum
+            }
+    }
+
+    /// Jahodová balení v objednávce (pro rozpis „2× Bedýnka, 1× Panetka").
+    var strawberryItems: [OrderItem] {
+        items.filter { Self.isStrawberry(productName: $0.productName) }
     }
 
     /// Položky kromě jahod (pro název události „ +vejce, sirup“).

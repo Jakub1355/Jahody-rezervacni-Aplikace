@@ -18,7 +18,6 @@ struct DictationSheet: View {
     // Editovatelná rozpoznaná pole (naplní se z formuláře a doplňují diktováním).
     @State private var name = ""
     @State private var phone = ""
-    @State private var strawberryText = ""
     @State private var pickupDay = Calendar.current.startOfDay(for: Date())
     @State private var pickupMinutes = OrderFormModel.defaultPickupMinutes()
     /// Produkty z číselníku (každý vlastní řádek s ručním množstvím).
@@ -27,8 +26,6 @@ struct DictationSheet: View {
     @State private var unknownItems: [OrderItem] = []
     @State private var note = ""
     @State private var didSeed = false
-    /// Řádek jahod se ukáže, až když jsou nadiktované/zadané (ať se hned nezobrazuje „0 kg“).
-    @State private var showsStrawberry = false
 
     // Snímek hodnot pořízený na začátku nahrávky. Živé rozpoznávání jen tento
     // základ **doplňuje** — dřív rozpoznané položky se tak nemažou, jen přibývají.
@@ -37,8 +34,6 @@ struct DictationSheet: View {
     private struct Snapshot {
         var name = ""
         var phone = ""
-        var strawberryText = ""
-        var showsStrawberry = false
         var pickupDay = Calendar.current.startOfDay(for: Date())
         var pickupMinutes = OrderFormModel.defaultPickupMinutes()
         var note = ""
@@ -46,13 +41,12 @@ struct DictationSheet: View {
         var unknownItems: [OrderItem] = []
     }
 
-    private enum Field: Hashable { case name, phone, strawberry, note }
+    private enum Field: Hashable { case name, phone, note }
     @FocusState private var focusedField: Field?
 
     private var hasAnyValue: Bool {
         !name.trimmingCharacters(in: .whitespaces).isEmpty
             || !phone.trimmingCharacters(in: .whitespaces).isEmpty
-            || !strawberryText.trimmingCharacters(in: .whitespaces).isEmpty
             || !knownItems.isEmpty
             || !unknownItems.isEmpty
             || !note.trimmingCharacters(in: .whitespaces).isEmpty
@@ -104,11 +98,9 @@ struct DictationSheet: View {
                 didSeed = true
                 name = model.customerName
                 phone = model.phone
-                strawberryText = model.strawberryText
                 pickupDay = model.pickupDay
                 pickupMinutes = model.pickupMinutes
                 note = model.note
-                showsStrawberry = !strawberryText.trimmingCharacters(in: .whitespaces).isEmpty
             }
         }
     }
@@ -191,20 +183,6 @@ struct DictationSheet: View {
                     .focused($focusedField, equals: .phone)
             }
 
-            if showsStrawberry {
-                HStack {
-                    Image("ic_jahody").resizable().scaledToFit().frame(width: 24, height: 24)
-                    Text("Jahody").foregroundStyle(.secondary)
-                    Spacer()
-                    TextField("0", text: $strawberryText)
-                        .keyboardType(.decimalPad)
-                        .multilineTextAlignment(.trailing)
-                        .focused($focusedField, equals: .strawberry)
-                        .frame(width: 80)
-                    Text("kg").foregroundStyle(.secondary)
-                }
-            }
-
             ForEach($knownItems) { $item in
                 HStack {
                     Image(ProductIcon.assetName(for: item.productName))
@@ -217,7 +195,8 @@ struct DictationSheet: View {
                         .keyboardType(.decimalPad)
                         .multilineTextAlignment(.trailing)
                         .frame(width: 70)
-                    Text(unitLabel(item.unit)).foregroundStyle(.secondary)
+                    Text(item.size.isEmpty ? unitLabel(item.unit) : item.size)
+                        .foregroundStyle(.secondary)
                 }
             }
             .onDelete { knownItems.remove(atOffsets: $0) }
@@ -384,8 +363,7 @@ struct DictationSheet: View {
     /// Snímek aktuálních polí (pevný základ pro následující nahrávku).
     private func currentSnapshot() -> Snapshot {
         Snapshot(
-            name: name, phone: phone, strawberryText: strawberryText,
-            showsStrawberry: showsStrawberry, pickupDay: pickupDay,
+            name: name, phone: phone, pickupDay: pickupDay,
             pickupMinutes: pickupMinutes, note: note,
             knownItems: knownItems, unknownItems: unknownItems
         )
@@ -400,13 +378,6 @@ struct DictationSheet: View {
 
         name = (result.customerName?.isEmpty == false) ? result.customerName! : base.name
         phone = (result.phone?.isEmpty == false) ? result.phone! : base.phone
-        if let kg = result.strawberryKg, kg > 0 {
-            strawberryText = CzechFormat.quantity(kg)
-            showsStrawberry = true
-        } else {
-            strawberryText = base.strawberryText
-            showsStrawberry = base.showsStrawberry
-        }
         pickupDay = result.pickupDay.map { Calendar.current.startOfDay(for: $0) } ?? base.pickupDay
         pickupMinutes = result.pickupMinutes ?? base.pickupMinutes
         note = (result.note?.isEmpty == false) ? result.note! : base.note
@@ -425,6 +396,7 @@ struct DictationSheet: View {
             }) {
                 result[index].quantity = item.quantity
                 result[index].unit = item.unit
+                result[index].size = item.size
                 if item.unitPrice != nil { result[index].unitPrice = item.unitPrice }
             } else {
                 result.append(item)
@@ -440,6 +412,7 @@ struct DictationSheet: View {
             $0.name.caseInsensitiveCompare(item.productName) == .orderedSame
         }) {
             updated.unit = product.unit.rawValue
+            updated.size = product.size
             updated.unitPrice = product.price
         }
         return updated
@@ -448,14 +421,12 @@ struct DictationSheet: View {
     private func clearAll() {
         name = ""
         phone = ""
-        strawberryText = ""
         note = ""
         knownItems = []
         unknownItems = []
         base = Snapshot()
         pickupDay = Calendar.current.startOfDay(for: Date())
         pickupMinutes = OrderFormModel.defaultPickupMinutes()
-        showsStrawberry = false
         dismissKeyboard()
         speech.reset()
     }
@@ -463,18 +434,16 @@ struct DictationSheet: View {
     /// Jde objednávku uložit rovnou z diktování? (jméno + aspoň jedna položka)
     private var canSaveOrder: Bool {
         let hasName = !name.trimmingCharacters(in: .whitespaces).isEmpty
-        let hasStrawberry = (CzechFormat.parseQuantity(strawberryText) ?? 0) > 0
         let hasItems = knownItems.contains { $0.quantity > 0 }
             || unknownItems.contains {
                 !$0.productName.trimmingCharacters(in: .whitespaces).isEmpty && $0.quantity > 0
             }
-        return hasName && (hasStrawberry || hasItems)
+        return hasName && hasItems
     }
 
     private func applyToModel() {
         model.customerName = name.trimmingCharacters(in: .whitespaces)
         model.phone = phone.trimmingCharacters(in: .whitespaces)
-        model.strawberryText = strawberryText.trimmingCharacters(in: .whitespaces)
         model.pickupDay = Calendar.current.startOfDay(for: pickupDay)
         model.pickupMinutes = pickupMinutes
         model.note = note.trimmingCharacters(in: .whitespaces)

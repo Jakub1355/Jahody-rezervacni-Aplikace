@@ -31,7 +31,7 @@ enum EventComposer {
     static func description(for order: Order) -> String {
         var lines: [String] = ["Položky:"]
         for item in order.items {
-            lines.append("• \(item.productName): \(CzechFormat.quantity(item.quantity)) \(item.unit)")
+            lines.append("• \(item.productName): \(item.quantityLabel)")
         }
         if let note = order.note, !note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             lines.append("")

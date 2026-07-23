@@ -95,8 +95,7 @@ struct NewOrderView: View {
 
     private func save() {
         guard let email = auth.user?.email else { return }
-        let strawberryProduct = products.products.first { Order.isStrawberry(productName: $0.name) }
-        let order = model.buildOrder(createdBy: email, strawberryProduct: strawberryProduct)
+        let order = model.buildOrder(createdBy: email)
 
         do {
             // Zápis do Firestore projde okamžitě (i offline)…
@@ -159,6 +158,7 @@ private struct AddDictatedProductsSheet: View {
         let id = UUID()
         var name: String
         var unit: ProductUnit
+        var size: String
         var priceText: String
         var add: Bool
     }
@@ -169,6 +169,7 @@ private struct AddDictatedProductsSheet: View {
             Draft(
                 name: item.productName,
                 unit: ProductUnit(rawValue: item.unit) ?? .ks,
+                size: item.size,
                 priceText: "",
                 add: true
             )
@@ -188,13 +189,14 @@ private struct AddDictatedProductsSheet: View {
                         Toggle("Přidat do číselníku", isOn: $draft.add)
                         if draft.add {
                             TextField("Název produktu", text: $draft.name)
-                            Picker("Jednotka", selection: $draft.unit) {
+                            TextField("Gramáž / balení (např. 250 ml)", text: $draft.size)
+                            Picker("Počítá se po", selection: $draft.unit) {
                                 ForEach(ProductUnit.allCases) { unit in
                                     Text(unit.label).tag(unit)
                                 }
                             }
                             .pickerStyle(.segmented)
-                            TextField("Cena za jednotku (Kč, nepovinné)", text: $draft.priceText)
+                            TextField("Cena za balení (Kč, nepovinné)", text: $draft.priceText)
                                 .keyboardType(.decimalPad)
                         }
                     } header: {
@@ -222,7 +224,12 @@ private struct AddDictatedProductsSheet: View {
         for draft in drafts where draft.add {
             let name = draft.name.trimmingCharacters(in: .whitespaces)
             guard !name.isEmpty else { continue }
-            products.add(name: name, unit: draft.unit, price: CzechFormat.parseQuantity(draft.priceText))
+            products.add(
+                name: name,
+                unit: draft.unit,
+                size: draft.size.trimmingCharacters(in: .whitespaces),
+                price: CzechFormat.parseQuantity(draft.priceText)
+            )
         }
     }
 }

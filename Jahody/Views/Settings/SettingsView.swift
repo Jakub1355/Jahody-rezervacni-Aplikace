@@ -6,9 +6,11 @@ struct SettingsView: View {
     @EnvironmentObject private var calendarSync: CalendarSyncManager
 
     @EnvironmentObject private var biometricLock: BiometricLock
+    @EnvironmentObject private var products: ProductStore
     @AppStorage(AppSettingsKeys.readyMessage) private var readyMessage = AppSettingsKeys.defaultReadyMessage
     @AppStorage(AppSettingsKeys.faceIDLock) private var faceIDLock = false
     @AppStorage(AppSettingsKeys.appIconChoice) private var iconChoice = 0
+    @State private var showsLoadPriceList = false
 
     var body: some View {
         NavigationStack {
@@ -38,10 +40,17 @@ struct SettingsView: View {
                     Text("Objednávky se propisují jako události do vybraného sdíleného kalendáře.")
                 }
 
-                Section("Produkty") {
+                Section {
                     NavigationLink("Správa číselníku produktů") {
                         ProductsSettingsView()
                     }
+                    Button("Načíst náš ceník") {
+                        showsLoadPriceList = true
+                    }
+                } header: {
+                    Text("Produkty")
+                } footer: {
+                    Text("„Načíst náš ceník" nahraje kompletní ceník farmy (jahody, sirupy, jogurty…) a smaže dosavadní testovací produkty.")
                 }
 
                 Section {
@@ -96,6 +105,18 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("Nastavení")
+            .confirmationDialog(
+                "Načíst náš ceník?",
+                isPresented: $showsLoadPriceList,
+                titleVisibility: .visible
+            ) {
+                Button("Načíst a nahradit", role: .destructive) {
+                    products.loadPriceList()
+                }
+                Button("Zpět", role: .cancel) {}
+            } message: {
+                Text("Nahraje kompletní ceník farmy a smaže dosavadní testovací produkty. Staré objednávky zůstanou nedotčené.")
+            }
         }
     }
 }

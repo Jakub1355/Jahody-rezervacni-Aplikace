@@ -117,7 +117,7 @@ private struct ProductRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(product.name)
                     .foregroundStyle(product.isActive ? .primary : .secondary)
-                Text("za \(product.unit.label)")
+                Text(product.size.isEmpty ? "za \(product.unit.label)" : product.size)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -162,19 +162,21 @@ private struct AddProductSheet: View {
 
     @State private var name = ""
     @State private var unit: ProductUnit = .ks
+    @State private var size = ""
     @State private var priceText = ""
 
     var body: some View {
         NavigationStack {
             Form {
                 TextField("Název produktu", text: $name)
-                Picker("Jednotka", selection: $unit) {
+                TextField("Gramáž / balení (např. 250 ml)", text: $size)
+                Picker("Počítá se po", selection: $unit) {
                     ForEach(ProductUnit.allCases) { unit in
                         Text(unit.label).tag(unit)
                     }
                 }
                 .pickerStyle(.segmented)
-                TextField("Cena za jednotku (Kč, nepovinné)", text: $priceText)
+                TextField("Cena za balení (Kč, nepovinné)", text: $priceText)
                     .keyboardType(.decimalPad)
             }
             .navigationTitle("Nový produkt")
@@ -185,6 +187,7 @@ private struct AddProductSheet: View {
                         products.add(
                             name: name.trimmingCharacters(in: .whitespaces),
                             unit: unit,
+                            size: size.trimmingCharacters(in: .whitespaces),
                             price: CzechFormat.parseQuantity(priceText)
                         )
                         dismiss()

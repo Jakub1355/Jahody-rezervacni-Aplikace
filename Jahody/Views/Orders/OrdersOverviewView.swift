@@ -99,13 +99,14 @@ struct DayHeaderView: View {
                     .foregroundStyle(Color.accentColor)
                 }
             }
-            let otherTotals = DailySummary.otherItemTotals(group.orders)
-            if !otherTotals.isEmpty {
-                HStack(spacing: 12) {
-                    ForEach(otherTotals, id: \.name) { total in
+            let totals = DailySummary.strawberryPackageTotals(group.orders)
+                + DailySummary.otherItemTotals(group.orders)
+            if !totals.isEmpty {
+                FlowLayout(spacing: 12) {
+                    ForEach(totals, id: \.name) { total in
                         ProductBadge(
                             iconName: ProductIcon.assetName(for: total.name),
-                            text: "\(CzechFormat.quantity(total.quantity)) \(total.unit)",
+                            text: DailySummary.quantityLabel(quantity: total.quantity, unit: total.unit, size: total.size),
                             iconSize: 26
                         )
                     }
@@ -141,7 +142,7 @@ struct OrderRowView: View {
                     ForEach(order.items) { item in
                         ProductBadge(
                             iconName: ProductIcon.assetName(for: item.productName),
-                            text: "\(CzechFormat.quantity(item.quantity)) \(item.unit)",
+                            text: item.quantityLabel,
                             iconSize: 30
                         )
                     }

@@ -19,7 +19,6 @@ struct OrderFormFields: View {
     var body: some View {
         Group {
             customerSection
-            strawberrySection
             extraItemsSection
             pickupDaySection
             pickupTimeSection
@@ -35,9 +34,9 @@ struct OrderFormFields: View {
             .ignoresSafeArea()
         }
         .sheet(isPresented: $showsNewProduct) {
-            NewProductSheet { name, unit, price in
+            NewProductSheet { name, unit, size, price in
                 // Uloží nový produkt do číselníku a rovnou ho přidá do objednávky.
-                let product = products.add(name: name, unit: unit, price: price)
+                let product = products.add(name: name, unit: unit, size: size, price: price)
                 model.addExtraItem(product: product)
             }
             .presentationDetents([.medium])
@@ -115,42 +114,16 @@ struct OrderFormFields: View {
         .buttonStyle(.plain)
     }
 
-    // MARK: Jahody
-    private var strawberrySection: some View {
-        Section {
-            FlowLayout {
-                ForEach(OrderFormModel.quickKgOptions, id: \.self) { kg in
-                    Chip(
-                        label: "\(CzechFormat.quantity(kg)) kg",
-                        isSelected: model.strawberryKg == kg
-                    ) {
-                        model.strawberryText = CzechFormat.quantity(kg)
-                    }
-                }
-            }
-            TextField("Jiné množství, např. 0,5", text: $model.strawberryText)
-                .keyboardType(.decimalPad)
-                .frame(minHeight: 40)
-        } header: {
-            Label {
-                Text("Jahody (kg)")
-            } icon: {
-                Image("ic_jahody").resizable().scaledToFit().frame(width: 20, height: 20)
-            }
-        }
-    }
-
-    // MARK: Další položky
+    // MARK: Produkty
     private var extraItemsSection: some View {
-        Section("Další produkty") {
-            let extraProducts = products.activeProducts
-                .filter { !Order.isStrawberry(productName: $0.name) }
-            if extraProducts.isEmpty {
+        Section("Produkty") {
+            let catalog = products.activeProducts
+            if catalog.isEmpty {
                 Text("Číselník produktů se načítá…")
                     .foregroundStyle(.secondary)
             } else {
                 FlowLayout {
-                    ForEach(extraProducts) { product in
+                    ForEach(catalog) { product in
                         Chip(
                             label: product.name,
                             iconName: ProductIcon.assetName(for: product.name),
@@ -178,9 +151,9 @@ struct OrderFormFields: View {
                             .foregroundStyle(.secondary)
                     }
                     .buttonStyle(.plain)
-                    Text("\(CzechFormat.quantity(item.quantity)) \(item.unit)")
+                    Text(item.quantityLabel)
                         .font(.body.monospacedDigit())
-                        .frame(minWidth: 56)
+                        .frame(minWidth: 64)
                     Button {
                         model.changeQuantity(of: item, steps: 1)
                     } label: {
@@ -283,8 +256,7 @@ struct OrderFormFields: View {
     // MARK: Cena
     @ViewBuilder
     private var priceSection: some View {
-        let strawberryProduct = products.products.first { Order.isStrawberry(productName: $0.name) }
-        let total = model.total(strawberryProduct: strawberryProduct)
+        let total = model.total
         if total > 0 {
             Section {
                 HStack {
@@ -312,12 +284,13 @@ struct OrderFormFields: View {
 
 /// Okno pro rychlé přidání nového produktu přímo z objednávky.
 private struct NewProductSheet: View {
-    /// (název, jednotka, cena?) potvrzeného produktu.
-    let onCreate: (String, ProductUnit, Double?) -> Void
+    /// (název, jednotka, gramáž, cena?) potvrzeného produktu.
+    let onCreate: (String, ProductUnit, String, Double?) -> Void
     @Environment(\.dismiss) private var dismiss
 
     @State private var name = ""
     @State private var unit: ProductUnit = .ks
+    @State private var size = ""
     @State private var priceText = ""
 
     var body: some View {
@@ -325,16 +298,17 @@ private struct NewProductSheet: View {
             Form {
                 Section {
                     TextField("Název produktu", text: $name)
-                    Picker("Jednotka", selection: $unit) {
+                    TextField("Gramáž / balení (např. 250 ml)", text: $size)
+                    Picker("Počítá se po", selection: $unit) {
                         ForEach(ProductUnit.allCases) { unit in
                             Text(unit.label).tag(unit)
                         }
                     }
                     .pickerStyle(.segmented)
-                    TextField("Cena za jednotku (Kč, nepovinné)", text: $priceText)
+                    TextField("Cena za balení (Kč, nepovinné)", text: $priceText)
                         .keyboardType(.decimalPad)
                 } footer: {
-                    Text("Produkt se přidá do této objednávky i do číselníku, takže ho příště najdete mezi dalšími produkty.")
+                    Text("Produkt se přidá do této objednávky i do číselníku, takže ho příště najdete mezi produkty.")
                 }
             }
             .navigationTitle("Nový produkt")
@@ -342,7 +316,12 @@ private struct NewProductSheet: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Přidat") {
-                        onCreate(name.trimmingCharacters(in: .whitespaces), unit, CzechFormat.parseQuantity(priceText))
+                        onCreate(
+                            name.trimmingCharacters(in: .whitespaces),
+                            unit,
+                            size.trimmingCharacters(in: .whitespaces),
+                            CzechFormat.parseQuantity(priceText)
+                        )
                         dismiss()
                     }
                     .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)

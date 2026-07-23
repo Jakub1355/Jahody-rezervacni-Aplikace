@@ -155,8 +155,7 @@ struct OrderDetailView: View {
 
     private func saveChanges(to order: Order) {
         guard let email = auth.user?.email else { return }
-        let strawberryProduct = products.products.first { Order.isStrawberry(productName: $0.name) }
-        let updated = model.apply(to: order, strawberryProduct: strawberryProduct)
+        let updated = model.apply(to: order)
         do {
             try orders.update(updated, editedBy: email)
         } catch {

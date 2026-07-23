@@ -59,16 +59,31 @@ final class ProductStore: ObservableObject {
     // MARK: - Správa číselníku
 
     @discardableResult
-    func add(name: String, unit: ProductUnit, price: Double? = nil) -> Product {
+    func add(name: String, unit: ProductUnit, size: String = "", price: Double? = nil) -> Product {
         let product = Product(
             name: name,
             unit: unit,
+            size: size,
             isActive: true,
             sortOrder: (products.map(\.sortOrder).max() ?? -1) + 1,
             price: price
         )
         try? collection.document(product.id).setData(from: product)
         return product
+    }
+
+    /// Nahraje kompletní ceník (Product.defaults) a smaže produkty, které v něm
+    /// nejsou (např. testovací). Idempotentní — dá se spustit opakovaně.
+    func loadPriceList() {
+        let batch = Firestore.firestore().batch()
+        let keepIds = Set(Product.defaults.map(\.id))
+        for product in products where !keepIds.contains(product.id) {
+            batch.deleteDocument(collection.document(product.id))
+        }
+        for product in Product.defaults {
+            _ = try? batch.setData(from: product, forDocument: collection.document(product.id))
+        }
+        batch.commit()
     }
 
     func rename(_ product: Product, to newName: String) {

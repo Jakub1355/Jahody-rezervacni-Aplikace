@@ -38,19 +38,32 @@ enum DailySummary {
             .reduce(0) { $0 + $1.strawberryKg }
     }
 
-    /// Součty ostatních položek aktivních objednávek podle (název, jednotka).
-    static func otherItemTotals(_ orders: [Order]) -> [(name: String, quantity: Double, unit: String)] {
+    /// Součty ostatních položek aktivních objednávek podle (název, jednotka, gramáž).
+    static func otherItemTotals(_ orders: [Order]) -> [(name: String, quantity: Double, unit: String, size: String)] {
+        aggregate(orders) { $0.nonStrawberryItems }
+    }
+
+    /// Součty jahodových balení (pro rozpis „2× Bedýnka · 1× Panetka").
+    static func strawberryPackageTotals(_ orders: [Order]) -> [(name: String, quantity: Double, unit: String, size: String)] {
+        aggregate(orders) { $0.strawberryItems }
+    }
+
+    private static func aggregate(
+        _ orders: [Order],
+        items: (Order) -> [OrderItem]
+    ) -> [(name: String, quantity: Double, unit: String, size: String)] {
         struct Key: Hashable {
             let name: String
             let unit: String
+            let size: String
         }
         var totals: [Key: Double] = [:]
         var firstSeen: [Key: Int] = [:]
         var counter = 0
 
         for order in orders where order.status == .aktivni {
-            for item in order.nonStrawberryItems {
-                let key = Key(name: item.productName, unit: item.unit)
+            for item in items(order) {
+                let key = Key(name: item.productName, unit: item.unit, size: item.size)
                 totals[key, default: 0] += item.quantity
                 if firstSeen[key] == nil {
                     firstSeen[key] = counter
@@ -60,13 +73,21 @@ enum DailySummary {
         }
         return totals
             .sorted { (firstSeen[$0.key] ?? 0) < (firstSeen[$1.key] ?? 0) }
-            .map { (name: $0.key.name, quantity: $0.value, unit: $0.key.unit) }
+            .map { (name: $0.key.name, quantity: $0.value, unit: $0.key.unit, size: $0.key.size) }
     }
 
-    /// „vajíčka 30 ks · sirup 2 ks“ (prázdný řetězec, pokud nic není)
+    /// Popisek množství: „2× 2,5 kg" pro balení, jinak „30 ks".
+    static func quantityLabel(quantity: Double, unit: String, size: String) -> String {
+        if !size.isEmpty {
+            return "\(CzechFormat.quantity(quantity))× \(size)"
+        }
+        return "\(CzechFormat.quantity(quantity)) \(unit)"
+    }
+
+    /// „vajíčka 30 ks · sirup 2× 500 ml“ (prázdný řetězec, pokud nic není)
     static func otherItemsSummary(_ orders: [Order]) -> String {
         otherItemTotals(orders)
-            .map { "\($0.name.lowercased(with: CzechFormat.locale)) \(CzechFormat.quantity($0.quantity)) \($0.unit)" }
+            .map { "\($0.name.lowercased(with: CzechFormat.locale)) \(quantityLabel(quantity: $0.quantity, unit: $0.unit, size: $0.size))" }
             .joined(separator: " · ")
     }
 }

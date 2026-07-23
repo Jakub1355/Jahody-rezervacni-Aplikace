@@ -2,22 +2,19 @@ import Foundation
 import SwiftUI
 
 /// Stav formuláře objednávky — sdílený mezi „Nová objednávka“ a „Detail“.
+/// Jahody i ostatní produkty jsou položky v `items` (počítají se po baleních).
 @MainActor
 final class OrderFormModel: ObservableObject {
     @Published var customerName = ""
     @Published var phone = ""
-    /// Množství jahod jako text (česká klávesnice s čárkou, např. „0,5“).
-    @Published var strawberryText = ""
     /// Den vyzvednutí (start dne).
     @Published var pickupDay: Date
     /// Čas vyzvednutí — minuty od půlnoci (po 30 minutách).
     @Published var pickupMinutes: Int
-    /// Další položky kromě jahod.
+    /// Objednané položky (jahody i ostatní produkty).
     @Published var extraItems: [OrderItem] = []
     @Published var note = ""
 
-    /// Rychlé chipy pro jahody — bedýnky 0,5 kg a 2,5 kg a jejich násobky.
-    static let quickKgOptions: [Double] = [0.5, 1, 1.5, 2, 2.5, 5, 7.5]
     /// Sloty po 30 minutách 7:00–19:30.
     static let timeSlots: [Int] = Array(stride(from: 7 * 60, through: 19 * 60 + 30, by: 30))
 
@@ -36,10 +33,6 @@ final class OrderFormModel: ObservableObject {
         return min(max(rounded, 7 * 60), 19 * 60 + 30)
     }
 
-    var strawberryKg: Double {
-        CzechFormat.parseQuantity(strawberryText) ?? 0
-    }
-
     var pickupAt: Date {
         Calendar.current.date(byAdding: .minute, value: pickupMinutes, to: pickupDay) ?? pickupDay
     }
@@ -50,28 +43,21 @@ final class OrderFormModel: ObservableObject {
 
     /// Jméno + aspoň jedna položka.
     var canSave: Bool {
-        !trimmedName.isEmpty && (strawberryKg > 0 || !extraItems.isEmpty)
+        !trimmedName.isEmpty && !items.isEmpty
     }
 
     // MARK: - Položky
 
-    func items(strawberryProduct: Product?) -> [OrderItem] {
-        var items: [OrderItem] = []
-        if strawberryKg > 0 {
-            items.append(OrderItem(
-                productName: strawberryProduct?.name ?? "Jahody",
-                quantity: strawberryKg,
-                unit: ProductUnit.kg.rawValue,
-                unitPrice: strawberryProduct?.price
-            ))
+    /// Platné položky (kladné množství, neprázdný název).
+    var items: [OrderItem] {
+        extraItems.filter {
+            $0.quantity > 0 && !$0.productName.trimmingCharacters(in: .whitespaces).isEmpty
         }
-        items.append(contentsOf: extraItems)
-        return items
     }
 
     /// Celková cena rozpracované objednávky (Kč) — 0, pokud ceny nejsou nastavené.
-    func total(strawberryProduct: Product?) -> Double {
-        items(strawberryProduct: strawberryProduct).reduce(0) { $0 + $1.lineTotal }
+    var total: Double {
+        items.reduce(0) { $0 + $1.lineTotal }
     }
 
     func addExtraItem(product: Product) {
@@ -83,6 +69,7 @@ final class OrderFormModel: ObservableObject {
                 productName: product.name,
                 quantity: step,
                 unit: product.unit.rawValue,
+                size: product.size,
                 unitPrice: product.price
             ))
         }
@@ -112,20 +99,15 @@ final class OrderFormModel: ObservableObject {
         let components = calendar.dateComponents([.hour, .minute], from: order.pickupAt)
         pickupMinutes = (components.hour ?? 0) * 60 + (components.minute ?? 0)
 
-        if let strawberries = order.items.first(where: { Order.isStrawberry(productName: $0.productName) }) {
-            strawberryText = CzechFormat.quantity(strawberries.quantity)
-        } else {
-            strawberryText = ""
-        }
-        extraItems = order.nonStrawberryItems
+        extraItems = order.items
     }
 
     /// Nová objednávka z formuláře.
-    func buildOrder(createdBy email: String, strawberryProduct: Product?) -> Order {
+    func buildOrder(createdBy email: String) -> Order {
         Order(
             customerName: trimmedName,
             phone: normalizedPhone,
-            items: items(strawberryProduct: strawberryProduct),
+            items: items,
             pickupAt: pickupAt,
             note: normalizedNote,
             status: .aktivni,
@@ -136,50 +118,19 @@ final class OrderFormModel: ObservableObject {
     }
 
     /// Propíše formulář do existující objednávky (Detail → Uložit změny).
-    func apply(to order: Order, strawberryProduct: Product?) -> Order {
+    func apply(to order: Order) -> Order {
         var updated = order
         updated.customerName = trimmedName
         updated.phone = normalizedPhone
-        updated.items = items(strawberryProduct: strawberryProduct)
+        updated.items = items
         updated.pickupAt = pickupAt
         updated.note = normalizedNote
         return updated
     }
 
-    /// Zapíše rozpoznaná pole z nadiktované objednávky. Co diktát nenašel,
-    /// zůstane beze změny — vše jde následně ručně upravit.
-    func apply(dictation result: DictationResult) {
-        if let name = result.customerName, !name.isEmpty {
-            customerName = name
-        }
-        if let phone = result.phone, !phone.isEmpty {
-            self.phone = phone
-        }
-        if let kg = result.strawberryKg, kg > 0 {
-            strawberryText = CzechFormat.quantity(kg)
-        }
-        if let day = result.pickupDay {
-            pickupDay = Calendar.current.startOfDay(for: day)
-        }
-        if let minutes = result.pickupMinutes {
-            pickupMinutes = minutes
-        }
-        for item in result.extraItems {
-            if let index = extraItems.firstIndex(where: { $0.productName == item.productName }) {
-                extraItems[index].quantity = item.quantity
-            } else {
-                extraItems.append(item)
-            }
-        }
-        if let note = result.note, !note.isEmpty {
-            self.note = note
-        }
-    }
-
     func reset() {
         customerName = ""
         phone = ""
-        strawberryText = ""
         pickupDay = Calendar.current.startOfDay(for: Date())
         pickupMinutes = Self.defaultPickupMinutes()
         extraItems = []
