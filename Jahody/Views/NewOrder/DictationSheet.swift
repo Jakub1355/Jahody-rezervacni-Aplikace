@@ -382,8 +382,41 @@ struct DictationSheet: View {
         pickupMinutes = result.pickupMinutes ?? base.pickupMinutes
         note = (result.note?.isEmpty == false) ? result.note! : base.note
 
-        knownItems = mergedItems(base.knownItems, result.extraItems.map(withCatalogInfo))
+        // Nadiktované kg jahod rozdělíme na balení (5 kg = 2× Bedýnka).
+        let dictatedKnown = result.extraItems.map(withCatalogInfo)
+            + strawberryPackages(forKg: result.strawberryKg)
+        knownItems = mergedItems(base.knownItems, dictatedKnown)
         unknownItems = mergedItems(base.unknownItems, result.unknownItems)
+    }
+
+    /// Rozdělí nadiktované kg jahod na dostupná jahodová balení (největší první,
+    /// tj. 5 kg → 2× Bedýnka 2,5 kg; 3 kg → 1× Bedýnka + 1× Panetka).
+    private func strawberryPackages(forKg kg: Double?) -> [OrderItem] {
+        guard let kg, kg > 0 else { return [] }
+        let packages = products
+            .filter { Order.isStrawberry(productName: $0.name) }
+            .compactMap { product -> (product: Product, kg: Double)? in
+                guard let pkgKg = product.kgPerPackage, pkgKg > 0 else { return nil }
+                return (product, pkgKg)
+            }
+            .sorted { $0.kg > $1.kg }
+
+        var remaining = kg
+        var items: [OrderItem] = []
+        for entry in packages {
+            let count = ((remaining + 0.0001) / entry.kg).rounded(.down)
+            if count >= 1 {
+                items.append(OrderItem(
+                    productName: entry.product.name,
+                    quantity: count,
+                    unit: entry.product.unit.rawValue,
+                    size: entry.product.size,
+                    unitPrice: entry.product.price
+                ))
+                remaining -= count * entry.kg
+            }
+        }
+        return items
     }
 
     /// Přidá nové položky k základu a u existujících (stejný název) jen upraví
