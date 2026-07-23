@@ -62,7 +62,7 @@ final class OrderFormModel: ObservableObject {
 
     func addExtraItem(product: Product) {
         let step = product.quantityStep
-        if let index = extraItems.firstIndex(where: { $0.productName == product.name }) {
+        if let index = extraItems.firstIndex(where: { matches(product, $0) }) {
             extraItems[index].quantity += step
         } else {
             extraItems.append(OrderItem(
@@ -73,6 +73,37 @@ final class OrderFormModel: ObservableObject {
                 unitPrice: product.price
             ))
         }
+    }
+
+    /// Kolik kusů produktu je v objednávce (0 = není).
+    func quantity(of product: Product) -> Double {
+        extraItems.first(where: { matches(product, $0) })?.quantity ?? 0
+    }
+
+    /// Je produkt v objednávce? (páruje se podle názvu i gramáže — dvě „Nitě“ různých velikostí)
+    func contains(_ product: Product) -> Bool {
+        extraItems.contains { matches(product, $0) }
+    }
+
+    /// + na dlaždici — přidá krok (vajíčka po 10).
+    func increment(_ product: Product) {
+        addExtraItem(product: product)
+    }
+
+    /// − na dlaždici — odebere krok; na nule produkt zmizí.
+    func decrement(_ product: Product) {
+        guard let index = extraItems.firstIndex(where: { matches(product, $0) }) else { return }
+        let step = ProductQuantity.step(forProductName: product.name)
+        let newQuantity = extraItems[index].quantity - step
+        if newQuantity <= 0 {
+            extraItems.remove(at: index)
+        } else {
+            extraItems[index].quantity = newQuantity
+        }
+    }
+
+    private func matches(_ product: Product, _ item: OrderItem) -> Bool {
+        item.productName == product.name && item.size == product.size
     }
 
     /// Změní množství o `steps` kroků (krok podle produktu — vajíčka po 10).

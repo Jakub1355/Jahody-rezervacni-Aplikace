@@ -6,24 +6,31 @@ struct Chip: View {
     let label: String
     /// Volitelná ikona (název obrázku v Assets) vlevo od textu.
     var iconName: String? = nil
+    /// Volitelný doplněk vpravo (např. gramáž „450 g").
+    var detail: String? = nil
     let isSelected: Bool
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 6) {
+            HStack(spacing: 5) {
                 if let iconName {
                     Image(iconName)
                         .resizable()
                         .scaledToFit()
-                        .frame(width: 24, height: 24)
+                        .frame(width: 20, height: 20)
                 }
                 Text(label)
-                    .font(.body.weight(isSelected ? .bold : .regular))
+                    .font(.subheadline.weight(isSelected ? .semibold : .regular))
                     .lineLimit(1)
+                if let detail, !detail.isEmpty {
+                    Text(detail)
+                        .font(.caption2)
+                        .foregroundStyle(isSelected ? Color.white.opacity(0.85) : Color.secondary)
+                }
             }
-            .padding(.horizontal, 16)
-            .frame(minHeight: 46)
+            .padding(.horizontal, 12)
+            .frame(minHeight: 38)
             .background(
                 isSelected ? Color.accentColor : Color(.secondarySystemBackground),
                 in: Capsule()

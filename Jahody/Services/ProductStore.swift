@@ -98,6 +98,10 @@ final class ProductStore: ObservableObject {
         }
     }
 
+    func setSize(_ product: Product, size: String) {
+        collection.document(product.id).updateData(["size": size])
+    }
+
     func setActive(_ product: Product, isActive: Bool) {
         collection.document(product.id).updateData(["isActive": isActive])
     }

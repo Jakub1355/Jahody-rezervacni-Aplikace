@@ -62,6 +62,11 @@ struct NewOrderView: View {
                 .onChange(of: scrollToTopTrigger) { _, _ in
                     withAnimation { proxy.scrollTo("top", anchor: .top) }
                 }
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    if !model.items.isEmpty {
+                        BasketBar(items: model.items, total: model.total)
+                    }
+                }
             }
             .navigationTitle("Nová objednávka")
             .sheet(isPresented: $showsDictation, onDismiss: {
@@ -231,5 +236,51 @@ private struct AddDictatedProductsSheet: View {
                 price: CzechFormat.parseQuantity(draft.priceText)
             )
         }
+    }
+}
+
+/// Lišta „košíku" nahoře — ukazuje, co je zatím v objednávce, a průběžnou cenu.
+private struct BasketBar: View {
+    let items: [OrderItem]
+    let total: Double
+
+    var body: some View {
+        VStack(spacing: 6) {
+            HStack {
+                Label("Košík", systemImage: "basket.fill")
+                    .font(.footnote.bold())
+                    .foregroundStyle(.secondary)
+                Spacer()
+                if total > 0 {
+                    Text(CzechFormat.price(total))
+                        .font(.subheadline.bold())
+                        .foregroundStyle(Color.accentColor)
+                }
+            }
+            .padding(.horizontal, 16)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(items) { item in
+                        HStack(spacing: 4) {
+                            Image(ProductIcon.assetName(for: item.productName))
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 18, height: 18)
+                            Text(item.quantityLabel)
+                                .font(.caption)
+                                .monospacedDigit()
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color(.tertiarySystemBackground), in: Capsule())
+                    }
+                }
+                .padding(.horizontal, 16)
+            }
+        }
+        .padding(.vertical, 8)
+        .background(.regularMaterial)
+        .overlay(alignment: .bottom) { Divider() }
     }
 }

@@ -124,49 +124,18 @@ struct OrderFormFields: View {
             } else {
                 FlowLayout {
                     ForEach(catalog) { product in
-                        Chip(
-                            label: product.name,
-                            iconName: ProductIcon.assetName(for: product.name),
-                            isSelected: model.extraItems.contains(where: { $0.productName == product.name })
-                        ) {
-                            model.addExtraItem(product: product)
-                        }
+                        ProductStepperChip(
+                            product: product,
+                            quantity: model.quantity(of: product),
+                            onAdd: { model.addExtraItem(product: product) },
+                            onIncrement: { model.increment(product) },
+                            onDecrement: { model.decrement(product) }
+                        )
                     }
                 }
             }
 
-            ForEach(model.extraItems) { item in
-                HStack {
-                    Image(ProductIcon.assetName(for: item.productName))
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 26, height: 26)
-                    Text(item.productName)
-                    Spacer()
-                    Button {
-                        model.changeQuantity(of: item, steps: -1)
-                    } label: {
-                        Image(systemName: "minus.circle.fill")
-                            .font(.title2)
-                            .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                    Text(item.quantityLabel)
-                        .font(.body.monospacedDigit())
-                        .frame(minWidth: 64)
-                    Button {
-                        model.changeQuantity(of: item, steps: 1)
-                    } label: {
-                        Image(systemName: "plus.circle.fill")
-                            .font(.title2)
-                            .foregroundStyle(Color.accentColor)
-                    }
-                    .buttonStyle(.plain)
-                }
-                .frame(minHeight: 40)
-            }
-
-            // Přidání nového produktu — až pod zadanými položkami.
+            // Přidání nového produktu — pod nabídkou.
             Chip(label: "＋ Nový produkt", isSelected: false) {
                 showsNewProduct = true
             }
@@ -279,6 +248,55 @@ struct OrderFormFields: View {
 
     private static func timeLabel(minutes: Int) -> String {
         String(format: "%d:%02d", minutes / 60, minutes % 60)
+    }
+}
+
+/// Dlaždice produktu. Nevybraná = klepnutím se přidá; vybraná = má vlevo −
+/// a vpravo + přímo na dlaždici (− na nule produkt odebere).
+private struct ProductStepperChip: View {
+    let product: Product
+    let quantity: Double
+    let onAdd: () -> Void
+    let onIncrement: () -> Void
+    let onDecrement: () -> Void
+
+    var body: some View {
+        if quantity > 0 {
+            HStack(spacing: 6) {
+                Button { onDecrement() } label: {
+                    Image(systemName: "minus.circle.fill").font(.title3)
+                }
+                .buttonStyle(.plain)
+
+                Image(ProductIcon.assetName(for: product.name))
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 18, height: 18)
+                Text(product.name)
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+                Text("\(CzechFormat.quantity(quantity))×")
+                    .font(.subheadline.bold())
+                    .monospacedDigit()
+
+                Button { onIncrement() } label: {
+                    Image(systemName: "plus.circle.fill").font(.title3)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 10)
+            .frame(minHeight: 40)
+            .foregroundStyle(.white)
+            .background(Color.accentColor, in: Capsule())
+        } else {
+            Chip(
+                label: product.name,
+                iconName: ProductIcon.assetName(for: product.name),
+                detail: product.size,
+                isSelected: false,
+                action: onAdd
+            )
+        }
     }
 }
 

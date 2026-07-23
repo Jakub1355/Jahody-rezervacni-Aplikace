@@ -113,7 +113,7 @@ extension Product {
         // Ostatní.
         Product(id: "granola", name: "Granola", unit: .ks, size: "balení", sortOrder: 27, price: 185),
         Product(id: "nite", name: "Nitě", unit: .ks, size: "450 g", sortOrder: 28, price: 200),
-        Product(id: "korbacky-nite", name: "Korbáčky – Nitě", unit: .ks, size: "200 g", sortOrder: 29, price: 100),
+        Product(id: "korbacky-nite", name: "Nitě", unit: .ks, size: "200 g", sortOrder: 29, price: 100),
         Product(id: "spaliky", name: "Špalíky", unit: .ks, size: "450 g", sortOrder: 30, price: 250),
     ]
 }

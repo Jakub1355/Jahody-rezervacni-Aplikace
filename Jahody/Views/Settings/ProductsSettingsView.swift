@@ -5,8 +5,6 @@ import UIKit
 struct ProductsSettingsView: View {
     @EnvironmentObject private var products: ProductStore
 
-    @State private var renamedProduct: Product?
-    @State private var renameText = ""
     @State private var showsAddSheet = false
     @State private var productPendingDeletion: Product?
 
@@ -16,10 +14,6 @@ struct ProductsSettingsView: View {
                 ForEach(products.products) { product in
                     ProductRow(
                         product: product,
-                        onRename: {
-                            renamedProduct = product
-                            renameText = product.name
-                        },
                         onDelete: {
                             productPendingDeletion = product
                         }
@@ -29,7 +23,7 @@ struct ProductsSettingsView: View {
                     products.move(fromOffsets: source, toOffset: destination)
                 }
             } footer: {
-                Text("Cena je za jednotku (kg / ks / l). Podle ní se počítá cena objednávky. Vypnuté produkty se nenabízejí při zadávání, ale ve starých objednávkách zůstávají.")
+                Text("Klepnutím upravíte název, gramáž i cenu. Cena je za balení. Vypnuté produkty se nenabízejí při zadávání, ale ve starých objednávkách zůstávají.")
             }
         }
         .navigationTitle("Produkty")
@@ -51,22 +45,6 @@ struct ProductsSettingsView: View {
                         #selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil
                     )
                 }
-            }
-        }
-        .alert("Přejmenovat produkt", isPresented: Binding(
-            get: { renamedProduct != nil },
-            set: { if !$0 { renamedProduct = nil } }
-        )) {
-            TextField("Název", text: $renameText)
-            Button("Uložit") {
-                if let product = renamedProduct,
-                   !renameText.trimmingCharacters(in: .whitespaces).isEmpty {
-                    products.rename(product, to: renameText.trimmingCharacters(in: .whitespaces))
-                }
-                renamedProduct = nil
-            }
-            Button("Zrušit", role: .cancel) {
-                renamedProduct = nil
             }
         }
         .confirmationDialog(
@@ -95,41 +73,44 @@ struct ProductsSettingsView: View {
     }
 }
 
-/// Řádek produktu s editovatelnou cenou.
+/// Řádek produktu s editovatelným názvem, gramáží a cenou.
 private struct ProductRow: View {
     let product: Product
-    let onRename: () -> Void
     let onDelete: () -> Void
 
     @EnvironmentObject private var products: ProductStore
+    @State private var nameText: String
+    @State private var sizeText: String
     @State private var priceText: String
-    @FocusState private var priceFocused: Bool
+    @FocusState private var focusedField: Field?
 
-    init(product: Product, onRename: @escaping () -> Void, onDelete: @escaping () -> Void) {
+    private enum Field { case name, size, price }
+
+    init(product: Product, onDelete: @escaping () -> Void) {
         self.product = product
-        self.onRename = onRename
         self.onDelete = onDelete
+        _nameText = State(initialValue: product.name)
+        _sizeText = State(initialValue: product.size)
         _priceText = State(initialValue: product.price.map { CzechFormat.quantity($0) } ?? "")
     }
 
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text(product.name)
+                TextField("Název produktu", text: $nameText)
                     .foregroundStyle(product.isActive ? .primary : .secondary)
-                Text(product.size.isEmpty ? "za \(product.unit.label)" : product.size)
+                    .focused($focusedField, equals: .name)
+                TextField("gramáž (např. 250 ml)", text: $sizeText)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .focused($focusedField, equals: .size)
             }
-            Spacer()
+            Spacer(minLength: 8)
             TextField("cena", text: $priceText)
                 .keyboardType(.decimalPad)
                 .multilineTextAlignment(.trailing)
-                .frame(width: 62)
-                .focused($priceFocused)
-                .onChange(of: priceFocused) { _, focused in
-                    if !focused { commitPrice() }
-                }
+                .frame(width: 54)
+                .focused($focusedField, equals: .price)
             Text("Kč")
                 .font(.callout)
                 .foregroundStyle(.secondary)
@@ -139,10 +120,30 @@ private struct ProductRow: View {
             ))
             .labelsHidden()
         }
+        .onChange(of: focusedField) { previous, _ in
+            switch previous {
+            case .name: commitName()
+            case .size: commitSize()
+            case .price: commitPrice()
+            case nil: break
+            }
+        }
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             Button("Smazat", role: .destructive) { onDelete() }
-            Button("Přejmenovat") { onRename() }
-                .tint(.blue)
+        }
+    }
+
+    private func commitName() {
+        let trimmed = nameText.trimmingCharacters(in: .whitespaces)
+        if !trimmed.isEmpty, trimmed != product.name {
+            products.rename(product, to: trimmed)
+        }
+    }
+
+    private func commitSize() {
+        let trimmed = sizeText.trimmingCharacters(in: .whitespaces)
+        if trimmed != product.size {
+            products.setSize(product, size: trimmed)
         }
     }
 
