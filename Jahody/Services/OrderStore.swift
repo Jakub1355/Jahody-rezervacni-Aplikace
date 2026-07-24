@@ -115,6 +115,14 @@ final class OrderStore: ObservableObject {
         try update(pickedUp, editedBy: email)
     }
 
+    /// Vrátí omylem vyzvednutou/zrušenou objednávku zpět mezi aktivní
+    /// (potažením v Historii). Objeví se zase v hlavním přehledu.
+    func restoreToActive(_ order: Order, editedBy email: String) throws {
+        var restored = order
+        restored.status = .aktivni
+        try update(restored, editedBy: email)
+    }
+
     /// Úplně smaže objednávku z Firestore (událost v kalendáři smaže volající).
     func delete(_ order: Order) {
         ordersCollection.document(order.id).delete()

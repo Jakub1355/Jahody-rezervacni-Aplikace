@@ -232,9 +232,14 @@ struct ProductBadge: View {
     }
 }
 
-/// Historie — starší objednávky po dnech (sestupně).
+/// Historie — starší i vyřízené objednávky po dnech (sestupně). Potažením
+/// zleva doprava lze objednávku omylem vyzvednutou/zrušenou vrátit zpět
+/// mezi aktivní; zprava doleva zůstává úplné smazání.
 struct HistoryView: View {
+    @EnvironmentObject private var app: AppModel
+    @EnvironmentObject private var auth: AuthService
     @EnvironmentObject private var orders: OrderStore
+    @State private var orderToDelete: Order?
 
     var body: some View {
         Group {
@@ -253,6 +258,21 @@ struct HistoryView: View {
                             ForEach(group.orders) { order in
                                 NavigationLink(value: order.id) {
                                     OrderRowView(order: order)
+                                }
+                                .swipeActions(edge: .leading) {
+                                    Button {
+                                        restoreOrder(order)
+                                    } label: {
+                                        Label("Vrátit zpět", systemImage: "arrow.uturn.backward.circle.fill")
+                                    }
+                                    .tint(.blue)
+                                }
+                                .swipeActions(edge: .trailing) {
+                                    Button(role: .destructive) {
+                                        orderToDelete = order
+                                    } label: {
+                                        Label("Smazat", systemImage: "trash")
+                                    }
                                 }
                             }
                         } header: {
@@ -278,5 +298,35 @@ struct HistoryView: View {
         .task {
             await orders.loadHistory()
         }
+        .confirmationDialog(
+            "Smazat objednávku?",
+            isPresented: Binding(
+                get: { orderToDelete != nil },
+                set: { if !$0 { orderToDelete = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Smazat", role: .destructive) {
+                if let order = orderToDelete { deleteOrder(order) }
+                orderToDelete = nil
+            }
+            Button("Zpět", role: .cancel) { orderToDelete = nil }
+        } message: {
+            if let order = orderToDelete {
+                Text("Objednávka \(order.customerName) se úplně smaže a odstraní se i z kalendáře.")
+            }
+        }
+    }
+
+    /// Vrátí objednávku zpět mezi aktivní — zmizí z Historie, objeví se v Objednávkách.
+    private func restoreOrder(_ order: Order) {
+        guard let email = auth.user?.email else { return }
+        try? orders.restoreToActive(order, editedBy: email)
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+    }
+
+    private func deleteOrder(_ order: Order) {
+        Task { await app.calendarSync.deleteEvent(for: order) }
+        orders.delete(order)
     }
 }
