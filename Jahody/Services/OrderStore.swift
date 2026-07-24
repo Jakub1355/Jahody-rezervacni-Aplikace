@@ -13,10 +13,22 @@ struct CustomerSuggestion: Identifiable, Hashable {
 /// neblokují UI a Firestore je po obnovení připojení samo doručí na server.
 @MainActor
 final class OrderStore: ObservableObject {
-    /// Objednávky od začátku dneška dál (živý listener).
+    /// Objednávky od začátku dneška dál (živý listener) — všechny stavy.
     @Published private(set) var upcomingOrders: [Order] = []
     /// Starší objednávky (načítané na vyžádání pro Historii a našeptávání).
     @Published private(set) var historyOrders: [Order] = []
+
+    /// Aktivní nadcházející objednávky — pro hlavní přehled (zrušené/vyzvednuté
+    /// se přesunou do Historie, jakmile se tak označí).
+    var activeUpcomingOrders: [Order] {
+        upcomingOrders.filter { $0.status == .aktivni }
+    }
+
+    /// Objednávky pro Historii: starší + dnešní/budoucí, které už jsou vyřízené
+    /// (zrušené nebo vyzvednuté), i když jejich den vyzvednutí ještě nenastal.
+    var historyAndResolvedOrders: [Order] {
+        historyOrders + upcomingOrders.filter { $0.status != .aktivni }
+    }
     @Published private(set) var historyLoaded = false
     /// Firestore Security Rules zamítly přístup → účet není v `allowedUsers`.
     @Published private(set) var accessDenied = false
@@ -93,6 +105,14 @@ final class OrderStore: ObservableObject {
         var cancelled = order
         cancelled.status = .zrusena
         try update(cancelled, editedBy: email)
+    }
+
+    /// Označí objednávku jako vyzvednutou (potažením v přehledu). Přesune se
+    /// tím z hlavního přehledu do Historie.
+    func markPickedUp(_ order: Order, editedBy email: String) throws {
+        var pickedUp = order
+        pickedUp.status = .vyzvednuta
+        try update(pickedUp, editedBy: email)
     }
 
     /// Úplně smaže objednávku z Firestore (událost v kalendáři smaže volající).

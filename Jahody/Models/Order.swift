@@ -1,15 +1,17 @@
 import Foundation
 
-/// Stav objednávky. Fáze 2 počítá s přidáním hodnot `nachystana` a `vyzvednuta` —
-/// proto je typ String-backed a Firestore ukládá surový řetězec.
+/// Stav objednávky. String-backed, Firestore ukládá surový řetězec.
 enum OrderStatus: String, Codable, CaseIterable {
     case aktivni
     case zrusena
+    /// Zákazník si objednávku vyzvedl — označeno potažením v přehledu.
+    case vyzvednuta
 
     var label: String {
         switch self {
         case .aktivni: return "Aktivní"
         case .zrusena: return "Zrušená"
+        case .vyzvednuta: return "Vyzvednuto"
         }
     }
 }

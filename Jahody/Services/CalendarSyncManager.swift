@@ -102,10 +102,12 @@ final class CalendarSyncManager: ObservableObject {
                 orders.markCalendarSync(orderId: order.id, eventId: nil, status: .synced)
             case (.zrusena, nil):
                 orders.markCalendarSync(orderId: order.id, eventId: nil, status: .synced)
-            case (.aktivni, let eventId?):
+            // Vyzvednutá objednávka se v kalendáři chová jako aktivní — událost
+            // je historický záznam, nemaže se.
+            case (.aktivni, let eventId?), (.vyzvednuta, let eventId?):
                 try await service.updateEvent(for: order, eventId: eventId, calendarId: calendarId)
                 orders.markCalendarSync(orderId: order.id, eventId: eventId, status: .synced)
-            case (.aktivni, nil):
+            case (.aktivni, nil), (.vyzvednuta, nil):
                 let eventId = try await service.createEvent(for: order, calendarId: calendarId)
                 orders.markCalendarSync(orderId: order.id, eventId: eventId, status: .synced)
             }

@@ -1,16 +1,18 @@
 import SwiftUI
+import UIKit
 
 /// Přehled objednávek po dnech (Dnes / Zítra / další dny) se součty kg jahod
 /// v hlavičce každého dne — podle toho se plánuje sběr.
 struct OrdersOverviewView: View {
     @EnvironmentObject private var app: AppModel
+    @EnvironmentObject private var auth: AuthService
     @EnvironmentObject private var orders: OrderStore
     @State private var orderToDelete: Order?
 
     var body: some View {
         NavigationStack {
             Group {
-                let groups = DailySummary.groupByDay(orders.upcomingOrders)
+                let groups = DailySummary.groupByDay(orders.activeUpcomingOrders)
                 if groups.isEmpty {
                     ContentUnavailableView(
                         "Žádné objednávky",
@@ -24,6 +26,14 @@ struct OrdersOverviewView: View {
                                 ForEach(group.orders) { order in
                                     NavigationLink(value: order.id) {
                                         OrderRowView(order: order)
+                                    }
+                                    .swipeActions(edge: .leading) {
+                                        Button {
+                                            markPickedUp(order)
+                                        } label: {
+                                            Label("Vyzvednuto", systemImage: "checkmark.circle.fill")
+                                        }
+                                        .tint(.green)
                                     }
                                     .swipeActions(edge: .trailing) {
                                         Button(role: .destructive) {
@@ -78,6 +88,13 @@ struct OrdersOverviewView: View {
         Task { await app.calendarSync.deleteEvent(for: order) }
         orders.delete(order)
     }
+
+    /// Označí objednávku jako vyzvednutou — přesune se do Historie.
+    private func markPickedUp(_ order: Order) {
+        guard let email = auth.user?.email else { return }
+        try? orders.markPickedUp(order, editedBy: email)
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+    }
 }
 
 /// Hlavička dne: „Dnes · čtvrtek 23. 7.“ + součet kg jahod (a dalších položek).
@@ -125,18 +142,26 @@ struct DayHeaderView: View {
 }
 
 /// Řádek objednávky: čas, jméno, položky zkráceně, indikátor synchronizace.
+/// V hlavním přehledu jsou to jen aktivní objednávky; v Historii i zrušené/vyzvednuté.
 struct OrderRowView: View {
     let order: Order
+
+    /// Dnes je den vyzvednutí a objednávka ještě čeká — zvýrazní se oranžově.
+    private var isDueToday: Bool {
+        order.status == .aktivni && Calendar.current.isDateInToday(order.pickupAt)
+    }
 
     var body: some View {
         HStack(spacing: 12) {
             Text(CzechFormat.timeFormatter.string(from: order.pickupAt))
                 .font(.title3.bold().monospacedDigit())
                 .frame(minWidth: 56, alignment: .leading)
+                .foregroundStyle(isDueToday ? .orange : .primary)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(order.customerName)
                     .font(.body.weight(.medium))
+                    .foregroundStyle(isDueToday ? .orange : .primary)
                     .strikethrough(order.status == .zrusena)
                 FlowLayout(spacing: 12) {
                     ForEach(order.items) { item in
@@ -160,21 +185,28 @@ struct OrderRowView: View {
             Spacer()
 
             HStack(spacing: 8) {
-                if order.status != .zrusena && order.hasMissingPrice {
+                if order.status == .aktivni && order.hasMissingPrice {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .foregroundStyle(.red)
                         .accessibilityLabel("U některé položky chybí cena")
                 }
 
-                if order.status == .zrusena {
+                switch order.status {
+                case .zrusena:
                     Text("zrušená")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                } else if order.calendarSyncStatus != .synced {
-                    // „Nesynchronizováno s kalendářem“
-                    Image(systemName: "exclamationmark.arrow.trianglehead.2.clockwise.rotate.90")
-                        .foregroundStyle(order.calendarSyncStatus == .error ? .red : .orange)
-                        .accessibilityLabel("Nesynchronizováno s kalendářem")
+                case .vyzvednuta:
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                        .accessibilityLabel("Vyzvednuto")
+                case .aktivni:
+                    if order.calendarSyncStatus != .synced {
+                        // „Nesynchronizováno s kalendářem“
+                        Image(systemName: "exclamationmark.arrow.trianglehead.2.clockwise.rotate.90")
+                            .foregroundStyle(order.calendarSyncStatus == .error ? .red : .orange)
+                            .accessibilityLabel("Nesynchronizováno s kalendářem")
+                    }
                 }
             }
         }
@@ -206,7 +238,7 @@ struct HistoryView: View {
 
     var body: some View {
         Group {
-            let groups = DailySummary.groupByDay(orders.historyOrders).reversed()
+            let groups = DailySummary.groupByDay(orders.historyAndResolvedOrders).reversed()
             if !orders.historyLoaded {
                 ProgressView("Načítám historii…")
             } else if groups.isEmpty {

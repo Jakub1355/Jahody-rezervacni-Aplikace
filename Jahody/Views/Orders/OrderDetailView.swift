@@ -35,6 +35,11 @@ struct OrderDetailView: View {
                             Label("Objednávka je zrušená", systemImage: "xmark.circle")
                                 .foregroundStyle(.secondary)
                         }
+                    } else if order.status == .vyzvednuta {
+                        Section {
+                            Label("Objednávka byla vyzvednuta", systemImage: "checkmark.circle.fill")
+                                .foregroundStyle(.green)
+                        }
                     } else if order.calendarSyncStatus != .synced {
                         Section {
                             HStack {
@@ -103,6 +108,14 @@ struct OrderDetailView: View {
                             .listRowInsets(EdgeInsets())
                             .disabled(!model.canSave)
 
+                            Button {
+                                markPickedUp(order)
+                            } label: {
+                                Label("Označit jako vyzvednuté", systemImage: "checkmark.circle.fill")
+                                    .frame(maxWidth: .infinity, minHeight: 44)
+                            }
+                            .tint(.green)
+
                             Button(role: .destructive) {
                                 showsCancelConfirmation = true
                             } label: {
@@ -165,6 +178,19 @@ struct OrderDetailView: View {
         errorMessage = nil
         UINotificationFeedbackGenerator().notificationOccurred(.success)
         Task { await app.calendarSync.syncNow(updated) }
+        dismiss()
+    }
+
+    /// Označí objednávku jako vyzvednutou — přesune se do Historie.
+    private func markPickedUp(_ order: Order) {
+        guard let email = auth.user?.email else { return }
+        do {
+            try orders.markPickedUp(order, editedBy: email)
+        } catch {
+            errorMessage = "Uložení se nepovedlo: \(error.localizedDescription)"
+            return
+        }
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
         dismiss()
     }
 
